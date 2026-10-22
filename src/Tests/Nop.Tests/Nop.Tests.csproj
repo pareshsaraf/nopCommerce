@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Presentation\Nop.Web\Nop.Web.csproj" />
+    <ProjectReference Include="..\..\Plugins\Nop.Plugin.AIRecommendation.GoogleAI\Nop.Plugin.AIRecommendation.GoogleAI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
