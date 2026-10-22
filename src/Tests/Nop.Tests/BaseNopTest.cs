@@ -30,7 +30,6 @@ using Nop.Core.Domain.Catalog;
 using Nop.Core.Domain.Customers;
 using Nop.Core.Domain.Media;
 using Nop.Core.Events;
-using Nop.Core.Http;
 using Nop.Core.Infrastructure;
 using Nop.Data;
 using Nop.Data.Configuration;
@@ -84,7 +83,6 @@ using Nop.Web.Framework;
 using Nop.Web.Framework.Factories;
 using Nop.Web.Framework.Infrastructure.Extensions;
 using Nop.Web.Framework.Mvc.Routing;
-using Nop.Web.Framework.Security.Captcha;
 using Nop.Web.Framework.Themes;
 using Nop.Web.Framework.UI;
 using Nop.Web.Framework.WebOptimizer;
@@ -192,20 +190,8 @@ public partial class BaseNopTest
         services.AddTransient<INopFileProvider, NopFileProvider>();
         CommonHelper.DefaultFileProvider = new NopFileProvider(webHostEnvironment.Object);
 
-        //default client
-        services.AddHttpClient(NopHttpDefaults.DefaultHttpClient).WithProxy();
-
-        //client to request current store
-        services.AddHttpClient<StoreHttpClient>();
-
-        //client to request nopCommerce official site
-        services.AddHttpClient<NopHttpClient>().WithProxy();
-
-        //client to request reCAPTCHA service
-        services.AddHttpClient<CaptchaHttpClient>().WithProxy();
-
-        //client to request artificial intelligence service
-        services.AddHttpClient<ArtificialIntelligenceHttpClient>().WithProxy();
+        //default HTTP clients, including the shared 429 retry handler
+        services.AddNopHttpClients();
 
         var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var typeFinder = new WebAppTypeFinder();
