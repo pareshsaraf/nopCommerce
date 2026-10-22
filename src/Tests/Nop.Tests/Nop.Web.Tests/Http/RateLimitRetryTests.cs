@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Options;
 using Moq;
+using Nop.Core;
 using Nop.Core.Domain.Customers;
 using Nop.Core.Domain.Logging;
 using Nop.Core.Http;
@@ -233,6 +234,33 @@ public class RateLimitRetryTests
             "Rate limit (HTTP 429) was hit for GET https://api.example.test/catalog.",
             It.Is<string>(message => message.Contains("Retry attempt: 1 of 4") && message.Contains("Retry-After: 2s")),
             null), Times.Once);
+    }
+
+    [Test]
+    public async Task EventLoggerDoesNotLoadOrCreateACustomer()
+    {
+        var logger = new Mock<ILogger>();
+        logger.Setup(item => item.IsEnabled(LogLevel.Error)).Returns(true);
+        logger.Setup(item => item.InsertLogAsync(It.IsAny<LogLevel>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Customer>()))
+            .Returns(Task.CompletedTask);
+
+        // GetCurrentCustomerAsync inserts a guest when the request has no customer cookie.
+        var workContext = new Mock<IWorkContext>(MockBehavior.Strict);
+
+        var services = new ServiceCollection();
+        services.AddSingleton<ILogger>(logger.Object);
+        services.AddSingleton<IWorkContext>(workContext.Object);
+        using var provider = services.BuildServiceProvider();
+        var eventLogger = new RateLimitEventLogger(provider.GetRequiredService<IServiceScopeFactory>(), () => true);
+
+        await eventLogger.LogAsync("GET /api/products", 429, 0, TimeSpan.FromSeconds(1));
+
+        logger.Verify(item => item.InsertLogAsync(
+            LogLevel.Error,
+            "Rate limit (HTTP 429) was hit for GET /api/products.",
+            It.IsAny<string>(),
+            null), Times.Once);
+        workContext.Verify(item => item.GetCurrentCustomerAsync(), Times.Never);
     }
 
     [Test]

@@ -1,8 +1,6 @@
 using System.Globalization;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
-using Nop.Core;
-using Nop.Core.Domain.Customers;
 using Nop.Core.Domain.Logging;
 using Nop.Data;
 using Nop.Services.Logging;
@@ -148,20 +146,12 @@ public class RateLimitEventLogger : IRateLimitEventLogger
             if (logger == null || !logger.IsEnabled(LogLevel.Error))
                 return;
 
-            Customer customer = null;
-            try
-            {
-                var workContext = scope.ServiceProvider.GetService<IWorkContext>();
-                if (workContext != null)
-                    customer = await workContext.GetCurrentCustomerAsync();
-            }
-            catch (Exception)
-            {
-                // A rejected or background call may not have a customer yet.
-            }
-
+            // Do not resolve IWorkContext.GetCurrentCustomerAsync(). With no customer cookie it
+            // inserts a guest and rewrites the response cookie. That includes requests the rate
+            // limiter has already rejected and outbound calls retried from a request that has not
+            // echoed its cookie yet, so the browser comes back as a different customer.
             var (shortMessage, fullMessage) = RateLimitLogMessages.Format(endpoint, statusCode, attempt, retryAfter);
-            await logger.InsertLogAsync(LogLevel.Error, shortMessage, fullMessage, customer);
+            await logger.InsertLogAsync(LogLevel.Error, shortMessage, fullMessage);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
