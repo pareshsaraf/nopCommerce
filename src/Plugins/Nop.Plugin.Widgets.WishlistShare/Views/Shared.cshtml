@@ -1,0 +1,59 @@
+@model SharedWishlistModel
+@{
+    Layout = "_ColumnsOne";
+
+    NopHtml.AddTitleParts(Model.Title);
+    NopHtml.AppendPageCssClassParts("html-wishlist-share-page");
+    NopHtml.AddCssFileParts("~/Plugins/Widgets.WishlistShare/Content/css/styles.css");
+}
+
+<div class="page wishlist-page wishlist-share-page">
+    <div class="page-title">
+        <h1>@Model.Title</h1>
+    </div>
+    <div class="page-body">
+        @if (!string.IsNullOrEmpty(Model.ExpiresOn))
+        {
+            <p class="wishlist-share-until">@Model.ExpiresOn</p>
+        }
+        @if (!string.IsNullOrEmpty(Model.Message))
+        {
+            <div class="@(Model.Unavailable ? "message-error" : "no-data")">
+                @Model.Message
+            </div>
+        }
+        @if (!Model.Unavailable && Model.Items.Count > 0)
+        {
+            <div class="table-wrapper">
+                <table class="cart">
+                    <thead>
+                        <tr>
+                            <th class="product">@T("ShoppingCart.Product(s)")</th>
+                            <th class="quantity">@T("ShoppingCart.Quantity")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Items)
+                        {
+                            <tr>
+                                <td class="product">
+                                    @if (!string.IsNullOrEmpty(item.ProductSeName))
+                                    {
+                                        <a href="@(await NopUrl.RouteGenericUrlAsync<Product>(new { SeName = item.ProductSeName }))" class="product-name">@item.ProductName</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="product-name">@item.ProductName</span>
+                                    }
+                                </td>
+                                <td class="quantity">
+                                    <span class="product-quantity">@item.Quantity</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

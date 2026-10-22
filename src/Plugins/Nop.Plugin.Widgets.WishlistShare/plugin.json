@@ -1,0 +1,11 @@
+{
+  "Group": "Widgets",
+  "FriendlyName": "Wishlist share",
+  "SystemName": "Widgets.WishlistShare",
+  "Version": "5.00.0",
+  "SupportedVersions": [ "5.00" ],
+  "Author": "nopCommerce team",
+  "DisplayOrder": 1,
+  "FileName": "Nop.Plugin.Widgets.WishlistShare.dll",
+  "Description": "Lets a customer create a public wishlist link that expires after 7, 30, or 90 days."
+}

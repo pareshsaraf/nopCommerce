@@ -1,0 +1,37 @@
+.wishlist-share-box {
+  margin-top: 24px;
+  padding: 16px 20px;
+  border: 1px solid #e6e6e6;
+}
+
+.wishlist-share-box .title {
+  margin: 0 0 8px;
+}
+
+.wishlist-share-hint {
+  margin: 0 0 12px;
+}
+
+.wishlist-share-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.wishlist-share-form select {
+  min-width: 140px;
+  height: 36px;
+}
+
+.wishlist-share-links {
+  margin-top: 16px;
+}
+
+.wishlist-share-links .share-link {
+  word-break: break-all;
+}
+
+.wishlist-share-until {
+  margin: 0 0 16px;
+}
