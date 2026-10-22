@@ -944,29 +944,43 @@ public class GoogleAiService
             var client = await SearchServiceClient.CreateAsync();
             var firstPage = client.Search(searchRequest).AsRawResponses().FirstOrDefault();
 
-            var result = new OrderedDictionary<string, int>();
-
             if (!(firstPage?.Any() ?? false) || firstPage.TotalSize == 0)
                 return ([], 0);
 
+            var externalIds = new List<string>();
             foreach (var item in firstPage)
-                result[item.Id] = int.TryParse(item.Id, out var productId) ? productId : 0;
+            {
+                if (!string.IsNullOrEmpty(item.Id))
+                    externalIds.Add(item.Id);
+            }
 
-            var skus = result.Where(kvp => kvp.Value == 0).Select(kvp => kvp.Key).ToList();
+            if (externalIds.Count == 0)
+                return ([], 0);
 
-            if (!skus.Any())
-                return (result.Values.ToList(), firstPage.TotalSize);
+            var productsBySku = await _productService.GetProductsBySkuAsync(externalIds.ToArray());
+            var combinationsBySku = await _productAttributeService.GetProductAttributeCombinationsBySkuAsync(externalIds.ToArray());
 
-            var products = await _productService.GetProductsBySkuAsync(skus.ToArray());
-            var combinations = await _productAttributeService.GetProductAttributeCombinationsBySkuAsync(skus.ToArray());
+            var entityIds = GoogleAiProductIdResolver.GetEntityIds(externalIds);
+            var productsById = entityIds.Length == 0
+                ? new List<Product>()
+                : await _productService.GetProductsByIdsAsync(entityIds);
 
-            foreach (var product in products)
-                result[product.Sku] = product.Id;
+            var combinationsById = new List<ProductAttributeCombination>();
+            foreach (var entityId in entityIds)
+            {
+                var combination = await _productAttributeService.GetProductAttributeCombinationByIdAsync(entityId);
+                if (combination != null)
+                    combinationsById.Add(combination);
+            }
 
-            foreach (var productAttributeCombination in combinations)
-                result[productAttributeCombination.Sku] = productAttributeCombination.ProductId;
+            var productIds = GoogleAiProductIdResolver.Resolve(
+                externalIds,
+                productsBySku,
+                combinationsBySku,
+                productsById ?? new List<Product>(),
+                combinationsById);
 
-            return (result.Values.Where(v => v != 0).ToList(), firstPage.TotalSize);
+            return (productIds, firstPage.TotalSize);
         }
         catch (Exception ex)
         {
