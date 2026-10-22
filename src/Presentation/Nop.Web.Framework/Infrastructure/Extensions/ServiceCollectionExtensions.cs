@@ -1,6 +1,8 @@
-﻿using System.Threading.RateLimiting;
+﻿using System.Globalization;
+using System.Threading.RateLimiting;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -23,6 +25,8 @@ using Nop.Services.Authentication;
 using Nop.Services.Authentication.External;
 using Nop.Services.Common;
 using Nop.Web.Framework.ClientsideFluentValidation;
+using Nop.Web.Framework.Http;
+using Nop.Web.Framework.Mvc.Filters;
 using Nop.Web.Framework.Mvc.ModelBinding.Binders;
 using Nop.Web.Framework.Mvc.Routing;
 using Nop.Web.Framework.Security.Captcha;
@@ -134,6 +138,8 @@ public static class ServiceCollectionExtensions
                         }));
 
                 options.RejectionStatusCode = commonConfig.RejectionStatusCode;
+                options.OnRejected = (rejectedContext, token) =>
+                    HandleRateLimitRejectedAsync(rejectedContext, token);
             });
         }
 
@@ -330,6 +336,9 @@ public static class ServiceCollectionExtensions
         //MVC now serializes JSON with camel case names by default, use this code to avoid it
         mvcBuilder.AddNewtonsoftJson(options => options.SerializerSettings.ContractResolver = new DefaultContractResolver());
 
+        //shared 429 handling for every controller, including plugin API controllers
+        services.AddScoped<RateLimitResponseFilter>();
+
         //set some options
         mvcBuilder.AddMvcOptions(options =>
         {
@@ -338,6 +347,8 @@ public static class ServiceCollectionExtensions
             //in .NET model binding for a non-nullable property may fail with an error message "The value '' is invalid"
             //here we set the locale name as the message, we'll replace it with the actual one later when not-null validation failed
             options.ModelBindingMessageProvider.SetValueMustNotBeNullAccessor(_ => NopValidationDefaults.NotNullValidationLocaleName);
+
+            options.Filters.AddService<RateLimitResponseFilter>();
         });
 
         //add fluent validation
@@ -440,6 +451,15 @@ public static class ServiceCollectionExtensions
     /// <param name="services">Collection of service descriptors</param>
     public static void AddNopHttpClients(this IServiceCollection services)
     {
+        //one retry handler for every factory client, including clients registered by plugins
+        services.TryAddSingleton<IRateLimitRetryDelay, RateLimitRetryDelay>();
+        services.TryAddSingleton<IRateLimitEventLogger, RateLimitEventLogger>();
+        services.TryAddTransient<RateLimitRetryDelegatingHandler>();
+        services.ConfigureHttpClientDefaults(builder =>
+        {
+            builder.AddHttpMessageHandler<RateLimitRetryDelegatingHandler>();
+        });
+
         //default client
         services.AddHttpClient(NopHttpDefaults.DefaultHttpClient).WithProxy();
 
@@ -454,5 +474,36 @@ public static class ServiceCollectionExtensions
 
         //client to request artificial intelligence service
         services.AddHttpClient<ArtificialIntelligenceHttpClient>().WithProxy();
+    }
+
+    /// <summary>
+    /// Logs a rejected incoming request and advertises Retry-After.
+    /// The configured rejection status code is left unchanged.
+    /// </summary>
+    /// <param name="context">Rejection context</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>A task that represents the asynchronous operation</returns>
+    private static async ValueTask HandleRateLimitRejectedAsync(OnRejectedContext context, CancellationToken cancellationToken)
+    {
+        var retryAfter = RateLimitRetryDefaults.BaseDelay;
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var metadataRetryAfter) && metadataRetryAfter > TimeSpan.Zero)
+            retryAfter = metadataRetryAfter;
+
+        if (!context.HttpContext.Response.HasStarted)
+        {
+            var seconds = Math.Max(0, (int)Math.Ceiling(retryAfter.TotalSeconds));
+            context.HttpContext.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
+        }
+
+        var request = context.HttpContext.Request;
+        var endpoint = RateLimitLogMessages.FormatEndpoint(
+            request.Method,
+            $"{request.Path}{request.QueryString}",
+            request.RouteValues["controller"]?.ToString(),
+            request.RouteValues["action"]?.ToString());
+
+        var eventLogger = context.HttpContext.RequestServices.GetService<IRateLimitEventLogger>();
+        if (eventLogger != null)
+            await eventLogger.LogAsync(endpoint, context.HttpContext.Response.StatusCode, attempt: 0, retryAfter, cancellationToken);
     }
 }
