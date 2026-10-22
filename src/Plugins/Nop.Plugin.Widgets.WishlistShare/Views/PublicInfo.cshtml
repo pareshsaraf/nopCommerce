@@ -1,0 +1,36 @@
+@model WishlistShareWidgetModel
+@{
+    Layout = "";
+}
+
+<link href="~/Plugins/Widgets.WishlistShare/Content/css/styles.css" rel="stylesheet" />
+
+<div class="wishlist-share-box">
+    <h2 class="title">@T("Plugins.Widgets.WishlistShare.Title")</h2>
+    <p class="wishlist-share-hint">@T("Plugins.Widgets.WishlistShare.Hint")</p>
+    <form method="post" action="@Url.RouteUrl(WishlistShareDefaults.CreateRouteName)" class="wishlist-share-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="customWishlistId" value="@Model.CustomWishlistId" />
+        <label for="wishlist-share-expiry">@T("Plugins.Widgets.WishlistShare.Expiry")</label>
+        <select id="wishlist-share-expiry" name="expiryDays">
+            @foreach (var option in Model.ExpiryOptions)
+            {
+                <option value="@option.Days">@option.Text</option>
+            }
+        </select>
+        <button type="submit" class="button-2 wishlist-share-button">@T("Plugins.Widgets.WishlistShare.Create")</button>
+    </form>
+    @if (Model.Links.Count > 0)
+    {
+        <div class="wishlist-share-links">
+            <h3>@T("Plugins.Widgets.WishlistShare.ExistingLinks")</h3>
+            @foreach (var link in Model.Links)
+            {
+                <div class="share-info">
+                    <span class="share-label">@link.ExpiresOn</span>
+                    <a href="@link.Url" class="share-link">@link.Url</a>
+                </div>
+            }
+        </div>
+    }
+</div>
