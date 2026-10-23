@@ -16,6 +16,7 @@ using Nop.Services.Discounts;
 using Nop.Services.Orders;
 using Nop.Services.Stores;
 using Nop.Tests.Nop.Services.Tests.Payments;
+using Nop.Tests.Nop.Services.Tests.Tax;
 using NUnit.Framework;
 
 namespace Nop.Tests.Nop.Services.Tests.Orders;
@@ -555,6 +556,24 @@ public class OrderTotalCalculationServiceTests : ServiceTest
         product = await _productService.GetProductBySkuAsync("FR_451_RB");
         product.IsFreeShipping = false;
         await _productService.UpdateProductAsync(product);
+    }
+
+    [Test]
+    public async Task TaxProviderFailureIsNotTreatedAsZeroTax()
+    {
+        FixedRateTestTaxProvider.FailTaxTotal = true;
+        try
+        {
+            var (taxTotal, _) = await GetService<IOrderTotalCalculationService>().GetTaxTotalAsync(await GetShoppingCartAsync());
+            taxTotal.Should().BeNull();
+
+            var (cartTotal, _, _, _, _, _) = await GetService<IOrderTotalCalculationService>().GetShoppingCartTotalAsync(await GetShoppingCartAsync());
+            cartTotal.Should().BeNull();
+        }
+        finally
+        {
+            FixedRateTestTaxProvider.FailTaxTotal = false;
+        }
     }
 
     [Test]

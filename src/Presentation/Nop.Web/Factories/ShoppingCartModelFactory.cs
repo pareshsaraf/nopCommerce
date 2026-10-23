@@ -1308,15 +1308,15 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
             else
             {
                 var (shoppingCartTaxBase, taxRates) = await _orderTotalCalculationService.GetTaxTotalAsync(cart);
-                var shoppingCartTax = await _currencyService.ConvertFromPrimaryStoreCurrencyAsync(shoppingCartTaxBase, currentCurrency);
 
-                if (shoppingCartTaxBase == 0 && _taxSettings.HideZeroTax)
+                if (!shoppingCartTaxBase.HasValue || (shoppingCartTaxBase.Value == 0 && _taxSettings.HideZeroTax))
                 {
                     displayTax = false;
                     displayTaxRates = false;
                 }
                 else
                 {
+                    var shoppingCartTax = await _currencyService.ConvertFromPrimaryStoreCurrencyAsync(shoppingCartTaxBase.Value, currentCurrency);
                     displayTaxRates = _taxSettings.DisplayTaxRates && taxRates.Any();
                     displayTax = !displayTaxRates;
 
