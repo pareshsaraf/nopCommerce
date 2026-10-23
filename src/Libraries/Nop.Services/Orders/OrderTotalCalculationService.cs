@@ -1298,14 +1298,20 @@ public partial class OrderTotalCalculationService : IOrderTotalCalculationServic
     /// <param name="usePaymentMethodAdditionalFee">A value indicating whether we should use payment method additional fee when calculating tax</param>
     /// <returns>
     /// A task that represents the asynchronous operation
-    /// The task result contains the ax total, Tax rates
+    /// The task result contains the tax total (null when the active tax provider failed; zero when no provider is configured or the calculated tax is zero), Tax rates
     /// </returns>
-    public virtual async Task<(decimal taxTotal, SortedDictionary<decimal, decimal> taxRates)> GetTaxTotalAsync(IList<ShoppingCartItem> cart, bool usePaymentMethodAdditionalFee = true)
+    public virtual async Task<(decimal? taxTotal, SortedDictionary<decimal, decimal> taxRates)> GetTaxTotalAsync(IList<ShoppingCartItem> cart, bool usePaymentMethodAdditionalFee = true)
     {
         ArgumentNullException.ThrowIfNull(cart);
 
         var taxTotalResult = await _taxService.GetTaxTotalAsync(cart, usePaymentMethodAdditionalFee);
         var taxRates = taxTotalResult?.TaxRates ?? new SortedDictionary<decimal, decimal>();
+
+        // No active provider returns null and means tax is not configured. A provider that
+        // reported errors also leaves TaxTotal at zero, which must not be persisted as a real total.
+        if (taxTotalResult is { Success: false })
+            return (null, taxRates);
+
         var taxTotal = taxTotalResult?.TaxTotal ?? decimal.Zero;
 
         if (_shoppingCartSettings.RoundPricesDuringCalculation)
@@ -1360,7 +1366,9 @@ public partial class OrderTotalCalculationService : IOrderTotalCalculationServic
         }
 
         //tax
-        var shoppingCartTax = (await GetTaxTotalAsync(cart, usePaymentMethodAdditionalFee)).taxTotal;
+        var (shoppingCartTax, _) = await GetTaxTotalAsync(cart, usePaymentMethodAdditionalFee);
+        if (!shoppingCartTax.HasValue)
+            return (null, decimal.Zero, new List<Discount>(), new List<AppliedGiftCard>(), redeemedRewardPoints, redeemedRewardPointsAmount);
 
         //order total
         var resultTemp = decimal.Zero;
@@ -1369,7 +1377,7 @@ public partial class OrderTotalCalculationService : IOrderTotalCalculationServic
             resultTemp += shoppingCartShipping.Value;
 
         resultTemp += paymentMethodAdditionalFeeWithoutTax;
-        resultTemp += shoppingCartTax;
+        resultTemp += shoppingCartTax.Value;
         if (_shoppingCartSettings.RoundPricesDuringCalculation)
             resultTemp = await _priceCalculationService.RoundPriceAsync(resultTemp);
 

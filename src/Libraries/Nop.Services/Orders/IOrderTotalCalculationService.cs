@@ -95,9 +95,9 @@ public partial interface IOrderTotalCalculationService
     /// <param name="usePaymentMethodAdditionalFee">A value indicating whether we should use payment method additional fee when calculating tax</param>
     /// <returns>
     /// A task that represents the asynchronous operation
-    /// The task result contains the ax total, Tax rates
+    /// The task result contains the tax total (null when the active tax provider failed; zero when no provider is configured or the calculated tax is zero), Tax rates
     /// </returns>
-    Task<(decimal taxTotal, SortedDictionary<decimal, decimal> taxRates)> GetTaxTotalAsync(IList<ShoppingCartItem> cart, bool usePaymentMethodAdditionalFee = true);
+    Task<(decimal? taxTotal, SortedDictionary<decimal, decimal> taxRates)> GetTaxTotalAsync(IList<ShoppingCartItem> cart, bool usePaymentMethodAdditionalFee = true);
 
     /// <summary>
     /// Gets shopping cart total

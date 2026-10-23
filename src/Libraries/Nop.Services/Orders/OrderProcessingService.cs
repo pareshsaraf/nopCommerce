@@ -384,8 +384,11 @@ public partial class OrderProcessingService : IOrderProcessingService
         details.PaymentAdditionalFeeExclTax = (await _taxService.GetPaymentMethodAdditionalFeeAsync(paymentAdditionalFee, false, details.Customer)).price;
 
         //tax amount
-        SortedDictionary<decimal, decimal> taxRatesDictionary;
-        (details.OrderTaxTotal, taxRatesDictionary) = await _orderTotalCalculationService.GetTaxTotalAsync(details.Cart);
+        var (orderTaxTotal, taxRatesDictionary) = await _orderTotalCalculationService.GetTaxTotalAsync(details.Cart);
+        if (!orderTaxTotal.HasValue)
+            throw new NopException("Tax total couldn't be calculated");
+
+        details.OrderTaxTotal = orderTaxTotal.Value;
 
         //VAT number
         if (_taxSettings.EuVatEnabled && details.Customer.VatNumberStatus == VatNumberStatus.Valid)

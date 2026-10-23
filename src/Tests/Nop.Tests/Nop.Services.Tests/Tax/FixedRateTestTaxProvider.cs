@@ -45,8 +45,16 @@ public class FixedRateTestTaxProvider : BasePlugin, ITaxProvider
     /// </summary>
     /// <param name="taxTotalRequest">Tax total request</param>
     /// <returns>Tax total</returns>
+    /// <summary>
+    /// When set, the next tax-total request is reported as a provider failure with a zero amount.
+    /// </summary>
+    public static bool FailTaxTotal { get; set; }
+
     public async Task<TaxTotalResult> GetTaxTotalAsync(TaxTotalRequest taxTotalRequest)
     {
+        if (FailTaxTotal)
+            return new TaxTotalResult { Errors = new List<string> { "Tax provider failed" } };
+
         var taxRates = new SortedDictionary<decimal, decimal>();
         var cart = taxTotalRequest.ShoppingCart;
         var customer = taxTotalRequest.Customer;

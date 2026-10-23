@@ -567,7 +567,7 @@ public class PayPalCommerceServiceManager
         var orderShippingTotal = PrepareMoney(shippingTotal ?? decimal.Zero, details.CurrencyCode);
 
         var (taxTotal, _) = await _orderTotalCalculationService.GetTaxTotalAsync(details.Cart, usePaymentMethodAdditionalFee: false);
-        var orderTaxTotal = PrepareMoney(taxTotal, details.CurrencyCode);
+        var orderTaxTotal = PrepareMoney(taxTotal ?? decimal.Zero, details.CurrencyCode);
 
         var itemAdjustment = decimal.Zero;
         var itemTotal = items.Sum(item => ConvertMoney(item.UnitAmount) * int.Parse(item.Quantity));
