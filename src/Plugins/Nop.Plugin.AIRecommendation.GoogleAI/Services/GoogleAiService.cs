@@ -267,7 +267,7 @@ public class GoogleAiService
             Id = id,
             Type = product.ParentGroupedProductId > 0 ? Google.Cloud.Retail.V2.Product.Types.Type.Variant : Google.Cloud.Retail.V2.Product.Types.Type.Primary,
             PrimaryProductId = parentId,
-            Title = CommonHelper.EnsureMaximumLength(product.ShortDescription ?? product.Name, 1000),
+            Title = GoogleAiProductTitle.Get(product),
             Description = CommonHelper.EnsureMaximumLength(product.FullDescription ?? string.Empty, 5000),
             LanguageCode = currentLanguage.LanguageCulture,
             PriceInfo = new PriceInfo
@@ -361,7 +361,7 @@ public class GoogleAiService
             Id = string.IsNullOrEmpty(combination.Sku) ? combination.Id.ToString() : combination.Sku,
             Type = Google.Cloud.Retail.V2.Product.Types.Type.Variant,
             PrimaryProductId = productId,
-            Title = CommonHelper.EnsureMaximumLength(product.ShortDescription ?? product.Name, 1000),
+            Title = GoogleAiProductTitle.Get(product),
             Description = CommonHelper.EnsureMaximumLength(product.FullDescription ?? string.Empty, 5000),
             LanguageCode = currentLanguage.LanguageCulture,
             PriceInfo = new PriceInfo
