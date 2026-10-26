@@ -272,7 +272,7 @@ public class PunchOutAdminController : BasePluginController
             ?? throw new ArgumentException("No punchout identity found with the specified id");
 
         identity.Identity = model.Identity;
-        identity.SharedSecretHash = model.SharedSecret;
+        identity.SharedSecretHash = PunchOutSharedSecret.ResolveStoredHash(identity.SharedSecretHash, model.SharedSecret);
 
         await _punchOutIdentityService.UpdatePunchOutIdentityAsync(identity);
 
