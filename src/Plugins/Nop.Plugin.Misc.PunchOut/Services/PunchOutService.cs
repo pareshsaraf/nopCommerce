@@ -1,6 +1,4 @@
-﻿using System.Security.Cryptography;
-using System.Text;
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using Nop.Core;
 using Nop.Core.Caching;
@@ -123,14 +121,8 @@ public class PunchOutService
         var sender = await _punchOutIdentityService.GetPunchOutIdentityAsync(identity)
             ?? throw new NopException("Unknown PunchOut identity.");
 
-        // client validation verification
-        var storedIdentity = sender?.SharedSecretHash;
-        var incomingSecret = sharedSecret;
-
-        var incomingBytes = Encoding.UTF8.GetBytes(incomingSecret);
-        var expectedBytes = Encoding.UTF8.GetBytes(storedIdentity);
-
-        if (!CryptographicOperations.FixedTimeEquals(incomingBytes, expectedBytes))
+        // Stored value is a SHA-256 hash. Compare the hash of the presented secret, not the secret itself.
+        if (!PunchOutSharedSecret.Matches(sender.SharedSecretHash, sharedSecret))
         {
             var errorXml = PunchOutXmlBuilder.BuildErrorResponse(new PunchOutErrorResponse
             {
