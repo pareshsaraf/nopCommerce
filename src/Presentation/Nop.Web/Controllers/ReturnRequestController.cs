@@ -242,6 +242,8 @@ public partial class ReturnRequestController : BasePublicController
 
         //returnable products
         var orderItems = await _orderService.GetOrderItemsAsync(order.Id, isNotReturnable: false);
+        var returnRequestAvailability = await _returnRequestService.GetReturnRequestAvailabilityAsync(order.Id);
+
         foreach (var orderItem in orderItems)
         {
             var quantity = 0; //parse quantity
@@ -256,6 +258,15 @@ public partial class ReturnRequestController : BasePublicController
 
             if (quantity > 0)
             {
+                var returnableOrderItem = returnRequestAvailability.ReturnableOrderItems.FirstOrDefault(oi =>
+                    oi.OrderItem.Id == orderItem.Id);
+
+                //posted quantity is not limited by the form; cap it at what can still be returned
+                if (returnableOrderItem is not { AvailableQuantityForReturn: > 0 })
+                    continue;
+
+                quantity = Math.Min(quantity, returnableOrderItem.AvailableQuantityForReturn);
+
                 var rrr = await _returnRequestService.GetReturnRequestReasonByIdAsync(model.ReturnRequestReasonId);
                 var rra = await _returnRequestService.GetReturnRequestActionByIdAsync(model.ReturnRequestActionId);
 
