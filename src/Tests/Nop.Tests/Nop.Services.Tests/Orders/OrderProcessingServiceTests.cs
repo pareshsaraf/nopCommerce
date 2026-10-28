@@ -67,6 +67,22 @@ public class OrderProcessingServiceTests : ServiceTest
     }
 
     [Test]
+    public void EnsureCustomerCanCancelOnlyUnpaidOrders()
+    {
+        var order = new Order();
+        foreach (OrderStatus os in Enum.GetValues(typeof(OrderStatus)))
+        foreach (PaymentStatus ps in Enum.GetValues(typeof(PaymentStatus)))
+        foreach (ShippingStatus ss in Enum.GetValues(typeof(ShippingStatus)))
+        {
+            order.OrderStatus = os;
+            order.PaymentStatus = ps;
+            order.ShippingStatus = ss;
+            var allowed = os != OrderStatus.Cancelled && ps == PaymentStatus.Pending;
+            _orderProcessingService.CanCustomerCancelOrder(order).Should().Be(allowed);
+        }
+    }
+
+    [Test]
     public void EnsureOrderCanOnlyBeMarkedAsAuthorizedWhenOrderStatusIsNotCancelledAndPaymentStatusIsPending()
     {
         var order = new Order();

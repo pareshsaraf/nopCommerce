@@ -221,13 +221,20 @@ public partial class OrderController : BasePublicController
 
         var order = await _orderService.GetOrderByIdAsync(orderId);
         var customer = await _workContext.GetCurrentCustomerAsync();
-        if (order == null || customer.Id != order.CustomerId)
+        if (order == null || order.Deleted || customer.Id != order.CustomerId)
             return Challenge();
-        
+
+        //CanCancelOrder is the admin rule and allows paid or shipped orders.
+        //Customers are limited to the same unpaid orders the order-details button shows.
+        if (!_orderProcessingService.CanCustomerCancelOrder(order))
+        {
+            _notificationService.ErrorNotification(await _localizationService.GetResourceAsync("Order.Cancel.Failed"));
+            return RedirectToRoute(NopRouteNames.Standard.ORDER_DETAILS, new { orderId });
+        }
+
         try
         {
-            if (_orderProcessingService.CanCancelOrder(order))
-                await _orderProcessingService.CancelOrderAsync(order, false);
+            await _orderProcessingService.CancelOrderAsync(order, false);
         }
         catch
         {

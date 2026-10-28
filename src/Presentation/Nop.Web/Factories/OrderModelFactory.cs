@@ -573,9 +573,8 @@ public partial class OrderModelFactory : IOrderModelFactory
         }
 
         //can user cancel the order
-        model.CanCancelOrder = order.PaymentStatus == PaymentStatus.Pending
-            && order.OrderStatus != OrderStatus.Cancelled
-            && _orderSettings.AllowCustomersCancelOrders;
+        model.CanCancelOrder = _orderSettings.AllowCustomersCancelOrders
+            && _orderProcessingService.CanCustomerCancelOrder(order);
 
         //purchased products
         model.ShowSku = _catalogSettings.ShowSkuOnProductDetailsPage;
