@@ -2383,6 +2383,23 @@ public partial class OrderProcessingService : IOrderProcessingService
     }
 
     /// <summary>
+    /// Gets a value indicating whether a customer may cancel the order.
+    /// Customers may cancel only unpaid orders. Administrators use <see cref="CanCancelOrder"/>.
+    /// </summary>
+    /// <param name="order">Order</param>
+    /// <returns>A value indicating whether the customer may cancel the order</returns>
+    public virtual bool CanCustomerCancelOrder(Order order)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+
+        //the order-details button uses the same rule: unpaid, and not already cancelled
+        if (order.OrderStatus == OrderStatus.Cancelled)
+            return false;
+
+        return order.PaymentStatus == PaymentStatus.Pending;
+    }
+
+    /// <summary>
     /// Cancels order
     /// </summary>
     /// <param name="order">Order</param>
