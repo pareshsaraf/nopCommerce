@@ -352,6 +352,101 @@
                 <a href="@wishlistUrl" class="share-link">@wishlistUrl</a>
             </div>
         }
+        @if (Model.IsEditable && Model.AllowMultipleWishlist && Model.ListId > 0)
+        {
+            var generateShareUrl = Url.RouteUrl(NopRouteNames.Ajax.GENERATE_WISHLIST_SHARE_LINK, new { wishlistId = Model.ListId });
+            <div class="wishlist-save-share-widget">
+                <div class="save-share-header">
+                    <span class="save-share-title">@T("Wishlist.SaveAndShare.Title")</span>
+                    <span class="save-share-note">@T("Wishlist.SaveAndShare.ExpiryNote")</span>
+                </div>
+                <div class="save-share-actions">
+                    <button type="button"
+                            id="generate-share-link-btn"
+                            class="button-1 generate-share-link-button"
+                            onclick="generateWishlistShareLink('@generateShareUrl')">
+                        @if (Model.ShareToken.HasValue && Model.ShareTokenExpiresOnUtc.HasValue && Model.ShareTokenExpiresOnUtc.Value > DateTime.UtcNow)
+                        {
+                            @T("Wishlist.SaveAndShare.RenewButton")
+                        }
+                        else
+                        {
+                            @T("Wishlist.SaveAndShare.GenerateButton")
+                        }
+                    </button>
+                </div>
+                @if (Model.ShareToken.HasValue && Model.ShareTokenExpiresOnUtc.HasValue && Model.ShareTokenExpiresOnUtc.Value > DateTime.UtcNow)
+                {
+                    var publicShareUrl = Url.RouteUrl(NopRouteNames.Standard.WISHLIST_BY_SHARE_TOKEN, new { token = Model.ShareToken }, webHelper.GetCurrentRequestProtocol());
+                    <div id="share-link-container" class="share-link-container">
+                        <div class="share-link-row">
+                            <input type="text"
+                                   id="wishlist-share-link"
+                                   class="share-link-input"
+                                   value="@publicShareUrl"
+                                   readonly="readonly"
+                                   aria-label="@T("Wishlist.SaveAndShare.LinkAriaLabel")" />
+                            <button type="button"
+                                    class="button-2 copy-share-link-button"
+                                    onclick="copyWishlistShareLink()"
+                                    title="@T("Wishlist.SaveAndShare.CopyTooltip")">
+                                @T("Wishlist.SaveAndShare.CopyButton")
+                            </button>
+                        </div>
+                        <div class="share-link-expiry">
+                            @T("Wishlist.SaveAndShare.ExpiresOn", Model.ShareTokenExpiresOnUtc.Value.ToString("MMMM d, yyyy"))
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div id="share-link-container" class="share-link-container" style="display:none;">
+                        <div class="share-link-row">
+                            <input type="text"
+                                   id="wishlist-share-link"
+                                   class="share-link-input"
+                                   readonly="readonly"
+                                   aria-label="@T("Wishlist.SaveAndShare.LinkAriaLabel")" />
+                            <button type="button"
+                                    class="button-2 copy-share-link-button"
+                                    onclick="copyWishlistShareLink()"
+                                    title="@T("Wishlist.SaveAndShare.CopyTooltip")">
+                                @T("Wishlist.SaveAndShare.CopyButton")
+                            </button>
+                        </div>
+                        <div id="share-link-expiry" class="share-link-expiry"></div>
+                    </div>
+                }
+            </div>
+            <script asp-location="Footer">
+                function generateWishlistShareLink(url) {
+                    $.ajax({
+                        url: url,
+                        type: 'POST',
+                        success: function (data) {
+                            if (data.success) {
+                                var container = $('#share-link-container');
+                                $('#wishlist-share-link').val(data.shareUrl);
+                                $('#share-link-expiry').text('@T("Wishlist.SaveAndShare.ExpiresOn", "{0}")'.replace('{0}', data.expiresOn));
+                                container.show();
+                                var btn = $('#generate-share-link-btn');
+                                btn.text('@T("Wishlist.SaveAndShare.RenewButton")');
+                            }
+                        }
+                    });
+                }
+                function copyWishlistShareLink() {
+                    var input = document.getElementById('wishlist-share-link');
+                    input.select();
+                    input.setSelectionRange(0, 99999);
+                    try {
+                        navigator.clipboard.writeText(input.value);
+                    } catch (e) {
+                        document.execCommand('copy');
+                    }
+                }
+            </script>
+        }
         @await Component.InvokeAsync(typeof(WidgetViewComponent), new { widgetZone = PublicWidgetZones.WishlistBottom, additionalData = Model })
     </div>
 </div>

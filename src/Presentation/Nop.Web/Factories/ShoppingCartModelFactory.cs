@@ -1075,7 +1075,11 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
         {
             var customWishlist = await _customWishlistService.GetCustomWishlistByIdAsync(list.Value);
             if (customWishlist != null)
+            {
                 model.CustomWishlistName = customWishlist.Name;
+                model.ShareToken = customWishlist.ShareToken;
+                model.ShareTokenExpiresOnUtc = customWishlist.ShareTokenExpiresOnUtc;
+            }
         }
 
         if (!cart.Any())

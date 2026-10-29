@@ -21169,4 +21169,28 @@
   <LocaleResource Name="Wishlist.YourWishlistURL">
     <Value>Your wishlist URL for sharing</Value>
   </LocaleResource>
+  <LocaleResource Name="Wishlist.SaveAndShare.Title">
+    <Value>Save &amp; Share Wishlist</Value>
+  </LocaleResource>
+  <LocaleResource Name="Wishlist.SaveAndShare.ExpiryNote">
+    <Value>Creates a public link valid for 30 days</Value>
+  </LocaleResource>
+  <LocaleResource Name="Wishlist.SaveAndShare.GenerateButton">
+    <Value>Save &amp; Get Link</Value>
+  </LocaleResource>
+  <LocaleResource Name="Wishlist.SaveAndShare.RenewButton">
+    <Value>Renew Link</Value>
+  </LocaleResource>
+  <LocaleResource Name="Wishlist.SaveAndShare.CopyButton">
+    <Value>Copy</Value>
+  </LocaleResource>
+  <LocaleResource Name="Wishlist.SaveAndShare.CopyTooltip">
+    <Value>Copy link to clipboard</Value>
+  </LocaleResource>
+  <LocaleResource Name="Wishlist.SaveAndShare.LinkAriaLabel">
+    <Value>Shareable wishlist link</Value>
+  </LocaleResource>
+  <LocaleResource Name="Wishlist.SaveAndShare.ExpiresOn">
+    <Value>Link expires on {0}</Value>
+  </LocaleResource>
 </Language>
