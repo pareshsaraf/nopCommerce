@@ -79,7 +79,10 @@
                         </ul>
                     </div>
                 }
-                <form asp-route="@NopRouteNames.General.WISHLIST" method="post" id="wishlist-form" asp-route-list="@Model.ListId">
+                <form method="post" id="wishlist-form"
+                      asp-route="@(Model.LoadedByShareToken ? NopRouteNames.Standard.WISHLIST_BY_SHARE_TOKEN : NopRouteNames.General.WISHLIST)"
+                      asp-route-list="@Model.ListId"
+                      asp-route-token="@(Model.LoadedByShareToken ? Model.ShareToken : null)">
                     <div class="table-wrapper">
                         <table class="cart">
                             <colgroup>
@@ -393,7 +396,7 @@
                                 @T("Wishlist.SaveAndShare.CopyButton")
                             </button>
                         </div>
-                        <div class="share-link-expiry">
+                        <div id="share-link-expiry" class="share-link-expiry">
                             @T("Wishlist.SaveAndShare.ExpiresOn", Model.ShareTokenExpiresOnUtc.Value.ToString("MMMM d, yyyy"))
                         </div>
                     </div>
@@ -420,9 +423,13 @@
             </div>
             <script asp-location="Footer">
                 function generateWishlistShareLink(url) {
+                    var postData = {};
+                    addAntiForgeryToken(postData);
                     $.ajax({
+                        cache: false,
                         url: url,
                         type: 'POST',
+                        data: postData,
                         success: function (data) {
                             if (data.success) {
                                 var container = $('#share-link-container');

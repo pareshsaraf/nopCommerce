@@ -42,6 +42,12 @@ public partial record WishlistModel : BaseNopModel
     /// </summary>
     public DateTime? ShareTokenExpiresOnUtc { get; set; }
 
+    /// <summary>
+    /// The page was opened by an expiring share token. Add-to-cart must post back
+    /// to that token so items are copied from the owner's wishlist.
+    /// </summary>
+    public bool LoadedByShareToken { get; set; }
+
     public bool DisplayAddToCart { get; set; }
 
     public bool DisplayTaxShippingInfo { get; set; }
