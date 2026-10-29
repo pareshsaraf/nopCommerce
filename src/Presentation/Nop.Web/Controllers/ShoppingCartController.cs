@@ -2085,6 +2085,7 @@ public partial class ShoppingCartController : BasePublicController
     /// <summary>
     /// Displays a custom wishlist identified by a publicly shareable token.
     /// </summary>
+    [HttpGet]
     public virtual async Task<IActionResult> WishlistByShareToken(Guid token)
     {
         if (!await _permissionService.AuthorizeAsync(StandardPermission.PublicStore.ENABLE_WISHLIST))
@@ -2094,15 +2095,90 @@ public partial class ShoppingCartController : BasePublicController
         if (wishlist == null)
             return RedirectToRoute(NopRouteNames.General.HOMEPAGE);
 
+        return await RenderSharedWishlistAsync(wishlist);
+    }
+
+    /// <summary>
+    /// Copies items from a token-shared wishlist into the current customer's cart.
+    /// </summary>
+    [HttpPost, ActionName("WishlistByShareToken")]
+    [FormValueRequired("addtocartbutton")]
+    public virtual async Task<IActionResult> AddItemsToCartFromSharedWishlist(Guid token, IFormCollection form)
+    {
+        if (!await _permissionService.AuthorizeAsync(StandardPermission.PublicStore.ENABLE_SHOPPING_CART))
+            return RedirectToRoute(NopRouteNames.General.HOMEPAGE);
+
+        if (!await _permissionService.AuthorizeAsync(StandardPermission.PublicStore.ENABLE_WISHLIST))
+            return RedirectToRoute(NopRouteNames.General.HOMEPAGE);
+
+        var wishlist = await _customWishlistService.GetCustomWishlistByShareTokenAsync(token);
+        if (wishlist == null)
+            return RedirectToRoute(NopRouteNames.General.HOMEPAGE);
+
+        var store = await _storeContext.GetCurrentStoreAsync();
+        var pageCustomer = await _customerService.GetCustomerByIdAsync(wishlist.CustomerId);
+        if (pageCustomer == null)
+            return RedirectToRoute(NopRouteNames.General.HOMEPAGE);
+
+        var customer = await _workContext.GetCurrentCustomerAsync();
+        var pageCart = await _shoppingCartService.GetShoppingCartAsync(pageCustomer, ShoppingCartType.Wishlist, store.Id, customWishlistId: wishlist.Id);
+
+        var allWarnings = new List<string>();
+        var countOfAddedItems = 0;
+        var allIdsToAdd = form.ContainsKey("addtocart")
+            ? form["addtocart"].ToString().Split(_separator, StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList()
+            : [];
+        foreach (var sci in pageCart)
+        {
+            if (!allIdsToAdd.Contains(sci.Id))
+                continue;
+
+            var product = await _productService.GetProductByIdAsync(sci.ProductId);
+            if (product == null)
+                continue;
+
+            var warnings = await _shoppingCartService.AddToCartAsync(customer,
+                product, ShoppingCartType.ShoppingCart,
+                store.Id,
+                sci.AttributesXml, sci.CustomerEnteredPrice,
+                sci.RentalStartDateUtc, sci.RentalEndDateUtc, sci.Quantity, true);
+            if (!warnings.Any())
+                countOfAddedItems++;
+
+            // MoveItemsFromWishlistToCart is on by default. This request is not the owner's
+            // wishlist page, so removing sci would delete their saved item.
+            allWarnings.AddRange(warnings);
+        }
+
+        if (countOfAddedItems > 0)
+        {
+            if (allWarnings.Any())
+                _notificationService.ErrorNotification(await _localizationService.GetResourceAsync("Wishlist.AddToCart.Error"));
+
+            return RedirectToRoute(NopRouteNames.General.CART);
+        }
+
+        _notificationService.WarningNotification(await _localizationService.GetResourceAsync("Wishlist.AddToCart.NoAddedItems"));
+
+        if (allWarnings.Any())
+            _notificationService.ErrorNotification(await _localizationService.GetResourceAsync("Wishlist.AddToCart.Error"));
+
+        return await RenderSharedWishlistAsync(wishlist);
+    }
+
+    /// <summary>
+    /// Renders a custom wishlist for a visitor who opened an unexpired share token.
+    /// </summary>
+    protected virtual async Task<IActionResult> RenderSharedWishlistAsync(CustomWishlist wishlist)
+    {
         var store = await _storeContext.GetCurrentStoreAsync();
         var customer = await _customerService.GetCustomerByIdAsync(wishlist.CustomerId);
         if (customer == null)
             return RedirectToRoute(NopRouteNames.General.HOMEPAGE);
 
         var cart = await _shoppingCartService.GetShoppingCartAsync(customer, ShoppingCartType.Wishlist, store.Id, customWishlistId: wishlist.Id);
-
-        var model = new WishlistModel();
-        model = await _shoppingCartModelFactory.PrepareWishlistModelAsync(model, cart, isEditable: false, list: wishlist.Id);
+        var model = await _shoppingCartModelFactory.PrepareWishlistModelAsync(new WishlistModel(), cart, isEditable: false, list: wishlist.Id);
+        model.LoadedByShareToken = true;
 
         return View("Wishlist", model);
     }
