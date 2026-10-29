@@ -99,5 +99,32 @@ public partial class CustomWishlistService : ICustomWishlistService
         return await _customWishlistRepository.GetByIdAsync(itemId);
     }
 
+    /// <summary>
+    /// Retrieves a custom wishlist by its shareable link token, provided the token has not expired.
+    /// </summary>
+    public virtual async Task<CustomWishlist> GetCustomWishlistByShareTokenAsync(Guid shareToken)
+    {
+        var now = DateTime.UtcNow;
+        return await _customWishlistRepository.Table
+            .FirstOrDefaultAsync(w => w.ShareToken == shareToken && w.ShareTokenExpiresOnUtc.HasValue && w.ShareTokenExpiresOnUtc.Value > now);
+    }
+
+    /// <summary>
+    /// Generates (or renews) a 30-day shareable link token for the specified custom wishlist.
+    /// </summary>
+    public virtual async Task<CustomWishlist> GenerateShareTokenAsync(int wishlistId)
+    {
+        var wishlist = await _customWishlistRepository.GetByIdAsync(wishlistId);
+        if (wishlist == null)
+            return null;
+
+        wishlist.ShareToken = Guid.NewGuid();
+        wishlist.ShareTokenExpiresOnUtc = DateTime.UtcNow.AddDays(30);
+
+        await _customWishlistRepository.UpdateAsync(wishlist);
+
+        return wishlist;
+    }
+
     #endregion
 }

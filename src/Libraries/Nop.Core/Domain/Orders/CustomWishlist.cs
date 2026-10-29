@@ -20,4 +20,14 @@ public partial class CustomWishlist : BaseEntity
     /// Gets or sets the date and time of instance creation
     /// </summary>
     public DateTime CreatedOnUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the token used to generate a publicly shareable link (null when no share link has been created)
+    /// </summary>
+    public Guid? ShareToken { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC date and time when the shareable link expires (null when no share link has been created)
+    /// </summary>
+    public DateTime? ShareTokenExpiresOnUtc { get; set; }
 }

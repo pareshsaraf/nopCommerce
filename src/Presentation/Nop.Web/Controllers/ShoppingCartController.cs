@@ -2053,5 +2053,59 @@ public partial class ShoppingCartController : BasePublicController
         });
     }
 
+    /// <summary>
+    /// Generates (or renews) a 30-day shareable link token for a custom wishlist (AJAX).
+    /// </summary>
+    [HttpPost]
+    public virtual async Task<IActionResult> GenerateWishlistShareLink(int wishlistId)
+    {
+        if (!await _permissionService.AuthorizeAsync(StandardPermission.PublicStore.ENABLE_WISHLIST))
+            return Json(new { success = false });
+
+        var customer = await _workContext.GetCurrentCustomerAsync();
+        var wishlist = await _customWishlistService.GetCustomWishlistByIdAsync(wishlistId);
+
+        if (wishlist == null || wishlist.CustomerId != customer.Id)
+            return Json(new { success = false, message = await _localizationService.GetResourceAsync("Wishlist.NotFound") });
+
+        wishlist = await _customWishlistService.GenerateShareTokenAsync(wishlistId);
+
+        var shareUrl = Url.RouteUrl(NopRouteNames.Standard.WISHLIST_BY_SHARE_TOKEN,
+            new { token = wishlist.ShareToken },
+            _webHelper.GetCurrentRequestProtocol());
+
+        return Json(new
+        {
+            success = true,
+            shareUrl,
+            expiresOn = wishlist.ShareTokenExpiresOnUtc!.Value.ToString("MMMM d, yyyy")
+        });
+    }
+
+    /// <summary>
+    /// Displays a custom wishlist identified by a publicly shareable token.
+    /// </summary>
+    public virtual async Task<IActionResult> WishlistByShareToken(Guid token)
+    {
+        if (!await _permissionService.AuthorizeAsync(StandardPermission.PublicStore.ENABLE_WISHLIST))
+            return RedirectToRoute(NopRouteNames.General.HOMEPAGE);
+
+        var wishlist = await _customWishlistService.GetCustomWishlistByShareTokenAsync(token);
+        if (wishlist == null)
+            return RedirectToRoute(NopRouteNames.General.HOMEPAGE);
+
+        var store = await _storeContext.GetCurrentStoreAsync();
+        var customer = await _customerService.GetCustomerByIdAsync(wishlist.CustomerId);
+        if (customer == null)
+            return RedirectToRoute(NopRouteNames.General.HOMEPAGE);
+
+        var cart = await _shoppingCartService.GetShoppingCartAsync(customer, ShoppingCartType.Wishlist, store.Id, customWishlistId: wishlist.Id);
+
+        var model = new WishlistModel();
+        model = await _shoppingCartModelFactory.PrepareWishlistModelAsync(model, cart, isEditable: false, list: wishlist.Id);
+
+        return View("Wishlist", model);
+    }
+
     #endregion
 }

@@ -233,6 +233,11 @@ public partial class RouteProvider : BaseRouteProvider, IRouteProvider
             pattern: $"renamecustomwishlist",
             defaults: new { controller = "ShoppingCart", action = "RenameWishlist" });
 
+        // generate wishlist share link. (AJAX)
+        endpointRouteBuilder.MapControllerRoute(name: NopRouteNames.Ajax.GENERATE_WISHLIST_SHARE_LINK,
+            pattern: $"generatewishlistsharelink/{{wishlistId:min(0)}}",
+            defaults: new { controller = "ShoppingCart", action = "GenerateWishlistShareLink" });
+
         //comparing products (AJAX)
         endpointRouteBuilder.MapControllerRoute(name: NopRouteNames.Ajax.ADD_PRODUCT_TO_COMPARE,
             pattern: $"compareproducts/add/{{productId:min(0)}}",
@@ -330,6 +335,11 @@ public partial class RouteProvider : BaseRouteProvider, IRouteProvider
         endpointRouteBuilder.MapControllerRoute(name: NopRouteNames.Standard.EMAIL_WISHLIST,
             pattern: $"{lang}/emailwishlist",
             defaults: new { controller = "ShoppingCart", action = "EmailWishlist" });
+
+        //public shared wishlist by token (30-day link)
+        endpointRouteBuilder.MapControllerRoute(name: NopRouteNames.Standard.WISHLIST_BY_SHARE_TOKEN,
+            pattern: $"wishlist/share/{{token:guid}}",
+            defaults: new { controller = "ShoppingCart", action = "WishlistByShareToken" });
 
         //login page for checkout as guest
         endpointRouteBuilder.MapControllerRoute(name: NopRouteNames.Standard.LOGIN_CHECKOUT_AS_GUEST,

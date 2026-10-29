@@ -42,4 +42,21 @@ public partial interface ICustomWishlistService
     /// <returns>A <see cref="CustomWishlist"/> object representing the custom wishlist with the specified identifier. Returns
     /// null if no wishlist is found with the given identifier.</returns>
     Task<CustomWishlist> GetCustomWishlistByIdAsync(int itemId);
+
+    /// <summary>
+    /// Retrieves a custom wishlist by its shareable link token, provided the token has not expired.
+    /// </summary>
+    /// <param name="shareToken">The share token (GUID) embedded in the public shareable link.</param>
+    /// <returns>A <see cref="CustomWishlist"/> whose <see cref="CustomWishlist.ShareToken"/> matches <paramref name="shareToken"/>
+    /// and whose <see cref="CustomWishlist.ShareTokenExpiresOnUtc"/> is in the future; otherwise <see langword="null"/>.</returns>
+    Task<CustomWishlist> GetCustomWishlistByShareTokenAsync(Guid shareToken);
+
+    /// <summary>
+    /// Generates (or renews) a 30-day shareable link token for the specified custom wishlist and persists the change.
+    /// </summary>
+    /// <param name="wishlistId">The identifier of the custom wishlist for which to generate the share token.</param>
+    /// <returns>The updated <see cref="CustomWishlist"/> containing the new <see cref="CustomWishlist.ShareToken"/>
+    /// and <see cref="CustomWishlist.ShareTokenExpiresOnUtc"/> values, or <see langword="null"/> when no wishlist
+    /// with <paramref name="wishlistId"/> exists.</returns>
+    Task<CustomWishlist> GenerateShareTokenAsync(int wishlistId);
 }

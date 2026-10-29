@@ -32,6 +32,16 @@ public partial record WishlistModel : BaseNopModel
 
     public string CustomWishlistName { get; set; }
 
+    /// <summary>
+    /// The active shareable-link token for this custom wishlist (null when none has been generated)
+    /// </summary>
+    public Guid? ShareToken { get; set; }
+
+    /// <summary>
+    /// UTC expiry date of the current share token
+    /// </summary>
+    public DateTime? ShareTokenExpiresOnUtc { get; set; }
+
     public bool DisplayAddToCart { get; set; }
 
     public bool DisplayTaxShippingInfo { get; set; }

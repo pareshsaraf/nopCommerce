@@ -232,6 +232,11 @@ public static partial class NopRouteNames
         public const string EMAIL_WISHLIST = "EmailWishlist";
 
         /// <summary>
+        /// Gets the public shared wishlist (by token) route name
+        /// </summary>
+        public const string WISHLIST_BY_SHARE_TOKEN = "WishlistByShareToken";
+
+        /// <summary>
         /// Gets the sample download route name
         /// </summary>
         public const string GET_SAMPLE_DOWNLOAD = "GetSampleDownload";
@@ -611,6 +616,11 @@ public static partial class NopRouteNames
         /// Gets the delete custom wishlist route name
         /// </summary>
         public const string DELETE_CUSTOM_WISHLIST = "DeleteCustomWishlist";
+
+        /// <summary>
+        /// Gets the generate wishlist share link route name (AJAX)
+        /// </summary>
+        public const string GENERATE_WISHLIST_SHARE_LINK = "GenerateWishlistShareLink";
 
         /// <summary>
         /// Gets the estimate shipping route name
