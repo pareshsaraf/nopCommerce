@@ -646,7 +646,7 @@ public partial class CustomerController : BasePublicController
     }
 
     [HttpPost]
-    public async Task<IActionResult> CommonVerificationOtp(string phone, string otpCode, int operationType = 0)
+    public async Task<IActionResult> CommonVerificationOtp(string phone, string otpCode, int operationType = 0, string returnUrl = null)
     {
         phone = phone?.Trim();
         if (string.IsNullOrEmpty(phone) || string.IsNullOrEmpty(otpCode))
@@ -702,13 +702,33 @@ public partial class CustomerController : BasePublicController
 
         if (operationType == (int)PhoneVerificationFlowEnum.Login)
         {
+            if (string.IsNullOrEmpty(returnUrl) || !Url.IsLocalUrl(returnUrl))
+                returnUrl = Url.RouteUrl(NopRouteNames.General.HOMEPAGE);
+
             var loginResult = await _customerRegistrationService.ValidateCustomerByPhoneAsync(phoneNumber);
             switch (loginResult)
             {
                 case CustomerLoginResults.Successful:
+                    //same completion as password login: migrate the guest cart and record the login
+                    await _customerRegistrationService.SignInCustomerAsync(customer, returnUrl, false);
+                    return Json(new { success = true, redirectUrl = returnUrl });
+                case CustomerLoginResults.MultiFactorAuthenticationRequired:
                     {
-                        await _authenticationService.SignInAsync(customer, false);
-                        break;
+                        var userNameOrEmail = _customerSettings.UsernamesEnabled ? customer.Username : customer.Email;
+                        var customerMultiFactorAuthenticationInfo = new CustomerMultiFactorAuthenticationInfo
+                        {
+                            UserName = userNameOrEmail,
+                            RememberMe = false,
+                            ReturnUrl = returnUrl
+                        };
+                        await HttpContext.Session.SetAsync(
+                            NopCustomerDefaults.CustomerMultiFactorAuthenticationInfo,
+                            customerMultiFactorAuthenticationInfo);
+                        return Json(new
+                        {
+                            success = true,
+                            redirectUrl = Url.RouteUrl(NopRouteNames.Standard.MULTIFACTOR_VERIFICATION)
+                        });
                     }
                 case CustomerLoginResults.CustomerNotExist:
                 case CustomerLoginResults.NotRegistered:
