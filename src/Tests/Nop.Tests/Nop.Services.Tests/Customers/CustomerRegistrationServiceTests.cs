@@ -21,12 +21,14 @@ public class CustomerRegistrationServiceTests : ServiceTest
         _customerRegistrationService = GetService<ICustomerRegistrationService>();
     }
 
-    private async Task<Customer> CreateCustomerAsync(PasswordFormat passwordFormat, bool isRegistered = true)
+    private async Task<Customer> CreateCustomerAsync(PasswordFormat passwordFormat, bool isRegistered = true, string email = "test@test.com", string phone = null)
     {
         var customer = new Customer
         {
-            Username = "test@test.com",
-            Email = "test@test.com",
+            Username = email,
+            Email = email,
+            Phone = phone,
+            PhoneSmsVerified = !string.IsNullOrEmpty(phone),
             Active = true
         };
 
@@ -124,5 +126,32 @@ public class CustomerRegistrationServiceTests : ServiceTest
         success.Success.Should().BeTrue();
 
         await DeleteCustomerAsync(customer);
+    }
+
+    [Test]
+    public async Task PhoneLoginRejectsLockedOutCustomer()
+    {
+        var customer = await CreateCustomerAsync(PasswordFormat.Clear, email: "phone-lock@test.com", phone: "+15550001111");
+        customer.CannotLoginUntilDateUtc = DateTime.UtcNow.AddHours(1);
+        await _customerService.UpdateCustomerAsync(customer);
+
+        var result = await _customerRegistrationService.ValidateCustomerByPhoneAsync(customer.Phone);
+        await DeleteCustomerAsync(customer);
+
+        result.Should().Be(CustomerLoginResults.LockedOut);
+    }
+
+    [Test]
+    public async Task CanValidateCustomerByPhone()
+    {
+        var customer = await CreateCustomerAsync(PasswordFormat.Clear, email: "phone-ok@test.com", phone: "+15550002222");
+
+        var result = await _customerRegistrationService.ValidateCustomerByPhoneAsync(customer.Phone);
+        var updated = await _customerService.GetCustomerByIdAsync(customer.Id);
+        await DeleteCustomerAsync(customer);
+
+        result.Should().Be(CustomerLoginResults.Successful);
+        updated.LastLoginDateUtc.Should().NotBeNull();
+        updated.PhoneSmsVerified.Should().BeTrue();
     }
 }

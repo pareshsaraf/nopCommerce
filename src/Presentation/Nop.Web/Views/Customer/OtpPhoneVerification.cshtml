@@ -155,7 +155,8 @@
             var postData = {
                 phone: phone,
                 otpCode: otpCode,
-                operationType: @((int)Model.VerificationFlow)
+                operationType: @((int)Model.VerificationFlow),
+                returnUrl: "@Model.ReturnUrl"
             };
             addAntiForgeryToken(postData);
 
@@ -166,7 +167,7 @@
                 dataType: 'json',
                 success: function(result) {
                     if (result.success) {
-                        window.location.href = '@Model.ReturnUrl';
+                        window.location.href = result.redirectUrl || '@Model.ReturnUrl';
                     } else {
                         notification(result.message || "@T("PhoneVerification.OtpCode.Error.Verification")", 'error');
                         otpInput.val("").prop("disabled", false).focus();
