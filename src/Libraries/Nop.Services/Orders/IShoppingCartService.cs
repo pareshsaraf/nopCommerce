@@ -311,10 +311,11 @@ public partial interface IShoppingCartService
     /// <summary>
     /// Move shopping cart item to a custom wishlist
     /// </summary>
+    /// <param name="customer">Customer who owns the item</param>
     /// <param name="shoppingCartItemId">Shopping cart item identifier</param>
     /// <param name="wishlistId">Custom wishlist identifier</param>
     /// <returns>A task that represents the asynchronous operation</returns>
-    Task MoveItemToCustomWishlistAsync(int shoppingCartItemId, int? wishlistId = null);
+    Task MoveItemToCustomWishlistAsync(Customer customer, int shoppingCartItemId, int? wishlistId = null);
 
     /// <summary>
     /// Migrate shopping cart

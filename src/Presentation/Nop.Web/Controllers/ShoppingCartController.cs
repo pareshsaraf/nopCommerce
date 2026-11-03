@@ -1971,11 +1971,11 @@ public partial class ShoppingCartController : BasePublicController
                 });
             }
 
-            await _shoppingCartService.MoveItemToCustomWishlistAsync(shoppingCartItemId, wishlist.Id);
+            await _shoppingCartService.MoveItemToCustomWishlistAsync(customer, shoppingCartItemId, wishlist.Id);
         }
         else
         {
-            await _shoppingCartService.MoveItemToCustomWishlistAsync(shoppingCartItemId);
+            await _shoppingCartService.MoveItemToCustomWishlistAsync(customer, shoppingCartItemId);
             redirectUrl = Url.RouteUrl(NopRouteNames.General.WISHLIST);
         }
         return Json(new

@@ -1828,20 +1828,32 @@ public partial class ShoppingCartService : IShoppingCartService
     /// <summary>
     /// Move shopping cart item to a custom wishlist
     /// </summary>
+    /// <param name="customer">Customer who owns the item</param>
     /// <param name="shoppingCartItemId">Shopping cart item identifier</param>
     /// <param name="wishlistId">Custom wishlist identifier</param>
     /// <returns>A task that represents the asynchronous operation</returns>
-    public virtual async Task MoveItemToCustomWishlistAsync(int shoppingCartItemId, int? wishlistId = null)
+    public virtual async Task MoveItemToCustomWishlistAsync(Customer customer, int shoppingCartItemId, int? wishlistId = null)
     {
+        ArgumentNullException.ThrowIfNull(customer);
+
         var shoppingCartItemFrom = await _sciRepository.GetByIdAsync(shoppingCartItemId, cache => default);
-        if (shoppingCartItemFrom == null)
+        //the posted id is not limited to the caller's wishlist, so ignore every other customer's lines
+        if (shoppingCartItemFrom == null || shoppingCartItemFrom.CustomerId != customer.Id)
             return;
 
-        var customer = await _customerService.GetCustomerByIdAsync(shoppingCartItemFrom.CustomerId);
-        var product = await _productService.GetProductByIdAsync(shoppingCartItemFrom.ProductId);
-        var cart = await GetShoppingCartAsync(customer, shoppingCartItemFrom.ShoppingCartType, shoppingCartItemFrom.StoreId, product.Id, customWishlistId: wishlistId);
+        //cart lines are not wishlist rows; matching a line against itself used to delete it
+        if (shoppingCartItemFrom.ShoppingCartType != ShoppingCartType.Wishlist || shoppingCartItemFrom.CustomWishlistId == wishlistId)
+            return;
 
-        var shoppingCartItemTo = await cart.FirstOrDefaultAwaitAsync(async sci => await ShoppingCartItemIsEqualAsync(sci, product, shoppingCartItemFrom.AttributesXml, shoppingCartItemFrom.CustomerEnteredPrice, shoppingCartItemFrom.RentalStartDateUtc, shoppingCartItemFrom.RentalEndDateUtc));
+        var product = await _productService.GetProductByIdAsync(shoppingCartItemFrom.ProductId);
+        if (product == null)
+            return;
+
+        var cart = await GetShoppingCartAsync(customer, ShoppingCartType.Wishlist, shoppingCartItemFrom.StoreId, product.Id, customWishlistId: wishlistId);
+
+        var shoppingCartItemTo = await cart.FirstOrDefaultAwaitAsync(async sci =>
+            sci.Id != shoppingCartItemFrom.Id &&
+            await ShoppingCartItemIsEqualAsync(sci, product, shoppingCartItemFrom.AttributesXml, shoppingCartItemFrom.CustomerEnteredPrice, shoppingCartItemFrom.RentalStartDateUtc, shoppingCartItemFrom.RentalEndDateUtc));
 
         if (shoppingCartItemTo != null)
         {
