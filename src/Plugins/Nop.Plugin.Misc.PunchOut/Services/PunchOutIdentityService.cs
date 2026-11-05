@@ -1,5 +1,4 @@
-﻿using System.Text;
-using Nop.Core;
+﻿using Nop.Core;
 using Nop.Data;
 using Nop.Plugin.Misc.PunchOut.Domain;
 
@@ -97,7 +96,7 @@ public class PunchOutIdentityService
         var record = new PunchOutIdentity
         {
             Identity = identity,
-            SharedSecretHash = HashHelper.CreateHash(Encoding.UTF8.GetBytes(sharedSecret), "SHA256")
+            SharedSecretHash = PunchOutSharedSecret.Hash(sharedSecret)
         };
 
         await _punchOutIdentityRepository.InsertAsync(record, false);
