@@ -73,4 +73,9 @@ public class PunchOutDefaults
     /// Customer attribute key for storing session
     /// </summary>
     public static string PunchOutSessionAttribute => "PunchOutSession";
+
+    /// <summary>
+    /// Customer attribute set on accounts created for PunchOut. Store accounts must not be reused.
+    /// </summary>
+    public static string PunchOutCustomerAttribute => "PunchOutCustomer";
 }

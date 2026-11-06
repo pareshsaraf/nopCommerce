@@ -200,7 +200,41 @@ public class PunchOutService
             await _customerService.AddCustomerRoleMappingAsync(new CustomerCustomerRoleMapping { CustomerId = customer.Id, CustomerRoleId = role.Id });
         }
 
+        await _genericAttributeService.SaveAttributeAsync(customer, PunchOutDefaults.PunchOutCustomerAttribute, true);
+
         return customer;
+    }
+
+    /// <summary>
+    /// Gets the PunchOut customer for a contact email.
+    /// An existing store account is never reused: setup would sign the browser in as that customer and overwrite their shipping address.
+    /// </summary>
+    /// <param name="contactEmail">Contact email from the setup request</param>
+    /// <returns>The PunchOut customer</returns>
+    private async Task<Customer> GetOrCreatePunchOutCustomerAsync(string contactEmail)
+    {
+        var contactIsStoreAccount = await IsStoreAccountAsync(contactEmail);
+        var dedicatedIsStoreAccount = contactIsStoreAccount && await IsStoreAccountAsync(PunchOutCustomerEmails.Dedicated(contactEmail));
+        var hashedIsStoreAccount = dedicatedIsStoreAccount && await IsStoreAccountAsync(PunchOutCustomerEmails.DedicatedWithDiscriminator(contactEmail));
+
+        var email = PunchOutCustomerEmails.Choose(contactEmail, contactIsStoreAccount, dedicatedIsStoreAccount, hashedIsStoreAccount);
+
+        return await _customerService.GetCustomerByEmailAsync(email)
+            ?? await CreatePunchOutCustomerAsync(email);
+    }
+
+    /// <summary>
+    /// A store account is any customer that was not created for PunchOut.
+    /// </summary>
+    /// <param name="email">Email to check</param>
+    /// <returns>Whether a non-PunchOut customer owns the email</returns>
+    private async Task<bool> IsStoreAccountAsync(string email)
+    {
+        var customer = await _customerService.GetCustomerByEmailAsync(email);
+        if (customer == null)
+            return false;
+
+        return !await _genericAttributeService.GetAttributeAsync<bool>(customer, PunchOutDefaults.PunchOutCustomerAttribute);
     }
 
     /// <summary>
@@ -359,8 +393,12 @@ public class PunchOutService
                 ? throw new NopException("Customer email not found.")
                 : request.Contact;
 
-            var customer = await _customerService.GetCustomerByEmailAsync(contactEmail)
-                ?? await CreatePunchOutCustomerAsync(contactEmail);
+            var customer = await GetOrCreatePunchOutCustomerAsync(contactEmail);
+
+            // Reject restricted roles before any address write. A denied setup must not change the customer.
+            var customerRoleIds = await _customerService.GetCustomerRoleIdsAsync(customer);
+            if (customerRoleIds.Intersect(_punchOutSettings.RestrictedCustomerRoleIds).Any())
+                throw new NopException("Access with current customer role denied.");
 
             if (request.ShipTo != null)
             {
@@ -387,11 +425,6 @@ public class PunchOutService
 
                 await _customerService.UpdateCustomerAsync(customer);
             }
-
-            //Restricted customer role check
-            var customerRoleIds = await _customerService.GetCustomerRoleIdsAsync(customer);
-            if (customerRoleIds.Intersect(_punchOutSettings.RestrictedCustomerRoleIds).Any())
-                throw new NopException("Access with current customer role denied.");
 
             // PunchOut session
             var session = new PunchOutSession
