@@ -208,6 +208,38 @@ public class PriceCalculationServiceTests : ServiceTest
         }
     }
 
+    [Test]
+    public async Task UnknownPriceListCalculationTypeLeavesCatalogPrice()
+    {
+        var product = await _productService.GetProductBySkuAsync("BP_20_WSP");
+        var customer = await _customerService.GetCustomerByEmailAsync(NopTestsDefaults.AdminEmail);
+        var store = new Store();
+
+        var priceList = new PriceList
+        {
+            Name = "Invalid calculation type",
+            Active = true,
+            PriceCalculationTypeId = 9,
+            PriceCalculationValue = 1
+        };
+        await _priceListService.InsertPriceListAsync(priceList);
+
+        var priceListItem = new PriceListItem { PriceListId = priceList.Id, ProductId = product.Id };
+        await _priceListService.InsertPriceListItemAsync(priceListItem);
+
+        try
+        {
+            var (_, finalPrice, _, _) = await _priceCalcService.GetFinalPriceAsync(product, customer, store, 150M, 0, false, 1, null, null);
+
+            finalPrice.Should().Be(150M);
+        }
+        finally
+        {
+            await _priceListService.DeletePriceListItemAsync(priceListItem);
+            await _priceListService.DeletePriceListAsync(priceList);
+        }
+    }
+
     [TestCase(12.366, 12.37, RoundingType.Rounding001)]
     [TestCase(12.363, 12.36, RoundingType.Rounding001)]
     [TestCase(12.000, 12.00, RoundingType.Rounding001)]
