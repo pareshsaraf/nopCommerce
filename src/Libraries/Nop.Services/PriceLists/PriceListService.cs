@@ -336,7 +336,9 @@ public partial class PriceListService : IPriceListService
             PriceCalculationTypeEnum.AmountDecrease => originalPrice - value,
             PriceCalculationTypeEnum.AmountIncrease => originalPrice + value,
             PriceCalculationTypeEnum.FixedPrice => value,
-            _ => throw new ArgumentOutOfRangeException(nameof(adjustmentType)),
+            // Excel import can persist a type outside the enum. Throwing here fails every
+            // storefront price calculation for customers on that list.
+            _ => originalPrice,
         };
     }
 

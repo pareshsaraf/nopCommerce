@@ -3761,6 +3761,9 @@ public partial class ImportManager : IImportManager
                             priceList.EndDateUtc = endDate;
                         break;
                     case nameof(PriceList.PriceCalculationType):
+                        if (!Enum.IsDefined(typeof(PriceCalculationTypeEnum), property.IntValue))
+                            throw new ArgumentException($"Price list '{priceList.Name}' has an invalid price calculation type ({property.IntValue}).");
+
                         priceList.PriceCalculationTypeId = property.IntValue;
                         break;
                     case nameof(PriceList.PriceCalculationValue):
