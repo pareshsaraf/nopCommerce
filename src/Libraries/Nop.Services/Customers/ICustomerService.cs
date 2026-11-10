@@ -198,6 +198,20 @@ public partial interface ICustomerService
     Task<Customer> GetCustomerByPhoneAsync(string phone);
 
     /// <summary>
+    /// Gets the customer an OTP must be stored on and checked against.
+    /// Registration and phone-change checks use the signed-in customer when the phone is theirs.
+    /// Login checks return only a customer who has already verified that phone.
+    /// </summary>
+    /// <param name="currentCustomer">Customer for the current request</param>
+    /// <param name="phone">Phone number</param>
+    /// <param name="forLogin">Whether this OTP is used to sign in</param>
+    /// <returns>
+    /// A task that represents the asynchronous operation.
+    /// The task result contains the customer, or null when the phone cannot be used for this OTP.
+    /// </returns>
+    Task<Customer> GetOtpCustomerAsync(Customer currentCustomer, string phone, bool forLogin);
+
+    /// <summary>
     /// Determines whether a verified phone number is already associated with a customer other than the specified
     /// customer.
     /// </summary>

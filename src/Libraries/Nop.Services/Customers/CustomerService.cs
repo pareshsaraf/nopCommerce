@@ -595,6 +595,36 @@ public partial class CustomerService : ICustomerService
     }
 
     /// <summary>
+    /// Gets the customer an OTP must be stored on and checked against.
+    /// </summary>
+    /// <param name="currentCustomer">Customer for the current request</param>
+    /// <param name="phone">Phone number</param>
+    /// <param name="forLogin">Whether this OTP is used to sign in</param>
+    /// <returns>
+    /// A task that represents the asynchronous operation.
+    /// The task result contains the customer, or null when the phone cannot be used for this OTP.
+    /// </returns>
+    public virtual async Task<Customer> GetOtpCustomerAsync(Customer currentCustomer, string phone, bool forLogin)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+            return null;
+
+        // The signed-in customer is proving a phone they just saved. Do not attach that code to an older account that stored the same number without verifying it.
+        if (!forLogin
+            && currentCustomer != null
+            && await IsRegisteredAsync(currentCustomer)
+            && string.Equals(currentCustomer.Phone, phone, StringComparison.Ordinal))
+            return currentCustomer;
+
+        if (!forLogin)
+            return null;
+
+        var customerByPhone = await GetCustomerByPhoneAsync(phone);
+
+        return customerByPhone is { PhoneSmsVerified: true } ? customerByPhone : null;
+    }
+
+    /// <summary>
     /// Determines whether a verified phone number is already associated with a customer other than the specified
     /// customer.
     /// </summary>
