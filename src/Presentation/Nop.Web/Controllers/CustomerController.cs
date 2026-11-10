@@ -578,9 +578,12 @@ public partial class CustomerController : BasePublicController
             return Json(new { success = false, message = await _localizationService.GetResourceAsync("Account.Fields.Phone.NotValid") });
         }
 
-        // Check if customer exists with this phone
+        // A signed-in customer verifying their own number keeps the code on that account.
+        // Login codes are sent only for a phone that is already verified, so an older unverified account cannot take the code.
         var phoneNumber = FormatPhoneNumber(phone);
-        var customer = await _customerService.GetCustomerByPhoneAsync(phoneNumber);
+        var currentCustomer = await _workContext.GetCurrentCustomerAsync();
+        var customer = await _customerService.GetOtpCustomerAsync(currentCustomer, phoneNumber, forLogin: false)
+            ?? await _customerService.GetOtpCustomerAsync(currentCustomer, phoneNumber, forLogin: true);
         if (customer == null)
         {
             return Json(new { success = false, message = await _localizationService.GetResourceAsync("Account.Login.WrongCredentials") });
@@ -659,7 +662,8 @@ public partial class CustomerController : BasePublicController
         }
 
         var phoneNumber = FormatPhoneNumber(phone);
-        var customer = await _customerService.GetCustomerByPhoneAsync(phoneNumber);
+        var forLogin = operationType == (int)PhoneVerificationFlowEnum.Login;
+        var customer = await _customerService.GetOtpCustomerAsync(await _workContext.GetCurrentCustomerAsync(), phoneNumber, forLogin);
         if (customer == null)
         {
             return Json(new { success = false, message = await _localizationService.GetResourceAsync("Account.Login.WrongCredentials") });

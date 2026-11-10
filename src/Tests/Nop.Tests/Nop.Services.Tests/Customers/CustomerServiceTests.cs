@@ -90,4 +90,70 @@ public class CustomerServiceTests : ServiceTest
         countAddresses.Should().Be(0);
         billingAddressId.Should().BeNull();
     }
+
+    [Test]
+    public async Task OtpUsesTheSignedInCustomerInsteadOfAnOlderUnverifiedPhone()
+    {
+        var phone = "+1999" + DateTime.UtcNow.Ticks;
+
+        var earlier = await CreateRegisteredCustomerAsync("otp-earlier-" + Guid.NewGuid().ToString("N") + "@example.com", phone, false);
+        var current = await CreateRegisteredCustomerAsync("otp-current-" + Guid.NewGuid().ToString("N") + "@example.com", phone, false);
+
+        try
+        {
+            var registrationCustomer = await _customerService.GetOtpCustomerAsync(current, phone, forLogin: false);
+            registrationCustomer.Id.Should().Be(current.Id);
+
+            var loginCustomer = await _customerService.GetOtpCustomerAsync(null, phone, forLogin: true);
+            loginCustomer.Should().BeNull();
+
+            current.PhoneSmsVerified = true;
+            await _customerService.UpdateCustomerAsync(current);
+
+            loginCustomer = await _customerService.GetOtpCustomerAsync(null, phone, forLogin: true);
+            loginCustomer.Id.Should().Be(current.Id);
+
+            var otherAccount = await _customerService.GetOtpCustomerAsync(earlier, phone, forLogin: false);
+            otherAccount.Id.Should().Be(earlier.Id);
+        }
+        finally
+        {
+            await DeleteCustomerAsync(current);
+            await DeleteCustomerAsync(earlier);
+        }
+    }
+
+    private async Task<Customer> CreateRegisteredCustomerAsync(string email, string phone, bool phoneVerified)
+    {
+        var customer = new Customer
+        {
+            Email = email,
+            Username = email,
+            Active = true,
+            CreatedOnUtc = DateTime.UtcNow,
+            Phone = phone,
+            PhoneSmsVerified = phoneVerified
+        };
+
+        await _customerService.InsertCustomerAsync(customer);
+
+        var registeredRole = await _customerService.GetCustomerRoleBySystemNameAsync(NopCustomerDefaults.RegisteredRoleName);
+        await _customerService.AddCustomerRoleMappingAsync(new CustomerCustomerRoleMapping
+        {
+            CustomerId = customer.Id,
+            CustomerRoleId = registeredRole.Id
+        });
+
+        return customer;
+    }
+
+    private async Task DeleteCustomerAsync(Customer customer)
+    {
+        customer.Email = string.Empty;
+        customer.Username = string.Empty;
+        customer.Phone = null;
+        customer.Active = false;
+        await _customerService.UpdateCustomerAsync(customer);
+        await _customerService.DeleteCustomerAsync(customer);
+    }
 }
