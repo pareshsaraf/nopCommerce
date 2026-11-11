@@ -684,6 +684,10 @@ public class PunchOutService
                 var key = _staticCacheManager.PrepareKeyForDefaultCache(PunchOutDefaults.SessionTokenCacheKey, session.SessionId);
                 await _staticCacheManager.RemoveAsync(key);
 
+                //The returned cart is already in the procurement message. The same customer is reused for the next
+                //setup with this contact email, so leaving the items would submit them again.
+                await _shoppingCartService.ClearShoppingCartAsync(customer, store.Id);
+
                 //standard logout 
                 await _authenticationService.SignOutAsync();
             }
