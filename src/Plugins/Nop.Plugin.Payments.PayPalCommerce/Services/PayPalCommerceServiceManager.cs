@@ -266,11 +266,13 @@ public class PayPalCommerceServiceManager
     }
 
     /// <summary>
-    /// Convert money object to decimal value
+    /// Convert money object to decimal value.
+    /// PayPal always sends a dot decimal separator. Parsing with the request culture
+    /// turns "10.50" into 1050 under de-DE (and drops it under fr-FR).
     /// </summary>
-    /// <param name="value">Amount value</param>
+    /// <param name="amount">Amount value</param>
     /// <returns>Decimal value</returns>
-    private static decimal ConvertMoney(Money amount)
+    internal static decimal ConvertMoney(Money amount)
     {
         return decimal.TryParse(amount?.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var value) ? value : decimal.Zero;
     }
@@ -3316,7 +3318,8 @@ public class PayPalCommerceServiceManager
                         if (refundIds.Contains(refund.Id))
                             break;
 
-                        if (!decimal.TryParse(refund.Amount?.Value, out var refundedAmount))
+                        var refundedAmount = ConvertMoney(refund.Amount);
+                        if (refundedAmount <= decimal.Zero)
                             break;
 
                         if (!_orderProcessingService.CanPartiallyRefundOffline(nopOrder, refundedAmount))
