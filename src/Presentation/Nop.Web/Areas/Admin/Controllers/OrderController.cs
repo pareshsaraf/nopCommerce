@@ -1713,13 +1713,16 @@ public partial class OrderController : BaseAdminController
 
             await LogEditOrderAsync(order.Id);
 
-            //gift cards
+            //gift cards. Order total update already issues cards when that setting is on.
             if (product.IsGiftCard)
             {
                 _productAttributeParser.GetGiftCardAttribute(
                     attributesXml, out var recipientName, out var recipientEmail, out var senderName, out var senderEmail, out var giftCardMessage);
 
-                for (var i = 0; i < orderItem.Quantity; i++)
+                var existingGiftCardCount = (await _giftCardService.GetGiftCardsByPurchasedWithOrderItemIdAsync(orderItem.Id)).Count;
+                var missingGiftCardCount = orderItem.Quantity - existingGiftCardCount;
+
+                for (var i = 0; i < missingGiftCardCount; i++)
                 {
                     var gc = new GiftCard
                     {
