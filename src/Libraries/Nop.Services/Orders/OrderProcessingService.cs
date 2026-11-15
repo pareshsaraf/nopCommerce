@@ -1347,6 +1347,29 @@ public partial class OrderProcessingService : IOrderProcessingService
     }
 
     /// <summary>
+    /// Issues gift cards for units of an order line that do not have one yet.
+    /// Saving an edited line must not create another card for units that were already issued.
+    /// </summary>
+    /// <param name="product">Product</param>
+    /// <param name="attributesXml">Attributes XML</param>
+    /// <param name="quantity">Quantity now on the order line</param>
+    /// <param name="orderItem">Order item</param>
+    /// <param name="unitPriceExclTax">Unit price exclude tax</param>
+    /// <returns>A task that represents the asynchronous operation</returns>
+    protected virtual async Task AddMissingGiftCardsAsync(Product product, string attributesXml, int quantity, OrderItem orderItem, decimal? unitPriceExclTax = null)
+    {
+        if (product is not { IsGiftCard: true })
+            return;
+
+        var existingCount = (await _giftCardService.GetGiftCardsByPurchasedWithOrderItemIdAsync(orderItem.Id)).Count;
+        var missingCount = quantity - existingCount;
+        if (missingCount <= 0)
+            return;
+
+        await AddGiftCardsAsync(product, attributesXml, missingCount, orderItem, unitPriceExclTax);
+    }
+
+    /// <summary>
     /// Add gift cards
     /// </summary>
     /// <param name="product">Product</param>
@@ -1757,8 +1780,8 @@ public partial class OrderProcessingService : IOrderProcessingService
             updatedOrderItem.AttributeDescription = await _productAttributeFormatter.FormatAttributesAsync(product,
                 updatedShoppingCartItem.AttributesXml, customer, store);
 
-            //gift cards
-            await AddGiftCardsAsync(product, updatedShoppingCartItem.AttributesXml, updatedShoppingCartItem.Quantity, updatedOrderItem, updatedOrderItem.UnitPriceExclTax);
+            //gift cards — only the units that are not already issued for this line
+            await AddMissingGiftCardsAsync(product, updatedShoppingCartItem.AttributesXml, updatedShoppingCartItem.Quantity, updatedOrderItem, updateOrderParameters.PriceExclTax);
         }
 
         await _orderTotalCalculationService.UpdateOrderTotalsAsync(updateOrderParameters, restoredCart);
