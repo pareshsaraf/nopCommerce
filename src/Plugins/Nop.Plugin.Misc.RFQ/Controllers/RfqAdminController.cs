@@ -168,7 +168,7 @@ public class RfqAdminController : BasePluginController
             ?? throw new ArgumentException("No product found with the specified id");
 
         //basic properties
-        _ = decimal.TryParse(form["UnitPriceInclTax"], out var unitPriceInclTax);
+        _ = RfqPriceInput.TryParseNumber(form["UnitPriceInclTax"], out var unitPriceInclTax);
         _ = int.TryParse(form["Quantity"], out var quantity);
 
         //warnings

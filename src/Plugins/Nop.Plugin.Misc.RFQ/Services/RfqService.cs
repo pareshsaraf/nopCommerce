@@ -42,6 +42,7 @@ public class RfqService
     private readonly IOrderService _orderService;
     private readonly IPermissionService _permissionService;
     private readonly IPictureService _pictureService;
+    private readonly IPriceCalculationService _priceCalculationService;
     private readonly IPriceFormatter _priceFormatter;
     private readonly IProductAttributeFormatter _productAttributeFormatter;
     private readonly IProductService _productService;
@@ -75,6 +76,7 @@ public class RfqService
         IOrderService orderService,
         IPermissionService permissionService,
         IPictureService pictureService,
+        IPriceCalculationService priceCalculationService,
         IPriceFormatter priceFormatter,
         IProductAttributeFormatter productAttributeFormatter,
         IProductService productService,
@@ -104,6 +106,7 @@ public class RfqService
         _orderService = orderService;
         _permissionService = permissionService;
         _pictureService = pictureService;
+        _priceCalculationService = priceCalculationService;
         _priceFormatter = priceFormatter;
         _productAttributeFormatter = productAttributeFormatter;
         _productService = productService;
@@ -229,11 +232,30 @@ public class RfqService
                     await UpdateQuantityWithLogAsync(requestQuoteItem, quantity);
                 break;
             case RfqDefaults.UNIT_PRICE_FORM_KEY:
-                if (decimal.TryParse(formValue, out var price) && requestQuoteItem.RequestedUnitPrice != price)
-                    await UpdateUnitPriceWithLogAsync(requestQuoteItem, price);
+                if (!RfqPriceInput.TryParseNumber(formValue, out var enteredPrice))
+                    break;
+
+                var primaryPrice = await ResolveRequestedUnitPriceAsync(requestQuoteItem.RequestedUnitPrice, enteredPrice);
+                if (requestQuoteItem.RequestedUnitPrice != primaryPrice)
+                    await UpdateUnitPriceWithLogAsync(requestQuoteItem, primaryPrice);
 
                 break;
         }
+    }
+
+    /// <summary>
+    /// The request form shows the price in the working currency. Number inputs post that amount with a '.' separator,
+    /// so a culture-sensitive parse would store 10.50 as 1050 and a later quote would charge it.
+    /// </summary>
+    private async Task<decimal> ResolveRequestedUnitPriceAsync(decimal currentPrimaryPrice, decimal enteredWorkingPrice)
+    {
+        var workingCurrency = await _workContext.GetWorkingCurrencyAsync();
+        var displayedPrice = _priceCalculationService.Round(
+            await _currencyService.ConvertFromPrimaryStoreCurrencyAsync(currentPrimaryPrice, workingCurrency),
+            workingCurrency.RoundingType);
+        var enteredPrimaryPrice = await _currencyService.ConvertToPrimaryStoreCurrencyAsync(enteredWorkingPrice, workingCurrency);
+
+        return RfqPriceInput.ResolvePrimaryUnitPrice(currentPrimaryPrice, enteredWorkingPrice, displayedPrice, enteredPrimaryPrice);
     }
 
     private async Task<string> GetCurrentCustomerEmailAsync()

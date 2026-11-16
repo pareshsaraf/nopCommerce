@@ -135,12 +135,7 @@ public class RfqCustomerController : BasePublicController
 
             var formValue = form[key];
 
-            if (!decimal.TryParse(formValue, out var unitPrice))
-                return;
-
-            requestQuoteItem.RequestedUnitPrice = unitPrice;
-
-            if (unitPrice >= 0)
+            if (!RfqPriceInput.TryParseNumber(formValue, out var unitPrice) || unitPrice >= 0)
                 return;
 
             var currentCurrency = await _workContext.GetWorkingCurrencyAsync();
