@@ -1,9 +1,12 @@
 ﻿using System.Globalization;
 using Microsoft.AspNetCore.Http;
 using Nop.Core;
+using Nop.Core.Domain.Catalog;
 using Nop.Core.Domain.Common;
 using Nop.Core.Domain.Customers;
+using Nop.Core.Domain.Directory;
 using Nop.Core.Domain.Orders;
+using Nop.Core.Domain.Tax;
 using Nop.Core.Http.Extensions;
 using Nop.Data;
 using Nop.Plugin.Misc.RFQ.Domains;
@@ -33,6 +36,7 @@ public class RfqService
 {
     #region Fields
 
+    private readonly CurrencySettings _currencySettings;
     private readonly ICurrencyService _currencyService;
     private readonly ICustomerService _customerService;
     private readonly IDateTimeHelper _dateTimeHelper;
@@ -42,6 +46,7 @@ public class RfqService
     private readonly IOrderService _orderService;
     private readonly IPermissionService _permissionService;
     private readonly IPictureService _pictureService;
+    private readonly IPriceCalculationService _priceCalculationService;
     private readonly IPriceFormatter _priceFormatter;
     private readonly IProductAttributeFormatter _productAttributeFormatter;
     private readonly IProductService _productService;
@@ -57,6 +62,7 @@ public class RfqService
     private readonly IStoreContext _storeContext;
     private readonly IStoreService _storeService;
     private readonly ITaxService _taxService;
+    private readonly TaxSettings _taxSettings;
     private readonly IWebHelper _webHelper;
     private readonly IWorkContext _workContext;
     private readonly IHtmlFormatter _htmlFormatter;
@@ -66,7 +72,8 @@ public class RfqService
 
     #region Ctor
 
-    public RfqService(ICurrencyService currencyService,
+    public RfqService(CurrencySettings currencySettings,
+        ICurrencyService currencyService,
         ICustomerService customerService,
         IDateTimeHelper dateTimeHelper,
         IHttpContextAccessor httpContextAccessor,
@@ -75,6 +82,7 @@ public class RfqService
         IOrderService orderService,
         IPermissionService permissionService,
         IPictureService pictureService,
+        IPriceCalculationService priceCalculationService,
         IPriceFormatter priceFormatter,
         IProductAttributeFormatter productAttributeFormatter,
         IProductService productService,
@@ -90,11 +98,13 @@ public class RfqService
         IStoreContext storeContext,
         IStoreService storeService,
         ITaxService taxService,
+        TaxSettings taxSettings,
         IWebHelper webHelper,
         IWorkContext workContext,
         IHtmlFormatter htmlFormatter,
         RfqMessageService rfqMessageService)
     {
+        _currencySettings = currencySettings;
         _currencyService = currencyService;
         _customerService = customerService;
         _dateTimeHelper = dateTimeHelper;
@@ -104,6 +114,7 @@ public class RfqService
         _orderService = orderService;
         _permissionService = permissionService;
         _pictureService = pictureService;
+        _priceCalculationService = priceCalculationService;
         _priceFormatter = priceFormatter;
         _productAttributeFormatter = productAttributeFormatter;
         _productService = productService;
@@ -119,6 +130,7 @@ public class RfqService
         _storeContext = storeContext;
         _storeService = storeService;
         _taxService = taxService;
+        _taxSettings = taxSettings;
         _webHelper = webHelper;
         _workContext = workContext;
         _htmlFormatter = htmlFormatter;
@@ -229,11 +241,73 @@ public class RfqService
                     await UpdateQuantityWithLogAsync(requestQuoteItem, quantity);
                 break;
             case RfqDefaults.UNIT_PRICE_FORM_KEY:
-                if (decimal.TryParse(formValue, out var price) && requestQuoteItem.RequestedUnitPrice != price)
-                    await UpdateUnitPriceWithLogAsync(requestQuoteItem, price);
+                if (!RfqCatalogPrice.TryParseNumber(formValue, out var enteredPrice))
+                    break;
+
+                var customer = await _workContext.GetCurrentCustomerAsync();
+                var product = await _productService.GetProductByIdAsync(requestQuoteItem.ProductId);
+                var primaryPrice = await ResolveCatalogPriceFromCustomerInputAsync(product, customer, requestQuoteItem.RequestedUnitPrice, enteredPrice);
+                if (requestQuoteItem.RequestedUnitPrice != primaryPrice)
+                    await UpdateUnitPriceWithLogAsync(requestQuoteItem, primaryPrice);
 
                 break;
         }
+    }
+
+    /// <summary>
+    /// Price shown to a customer: catalog unit price converted to the working currency and adjusted for tax display.
+    /// </summary>
+    /// <summary>
+    /// Catalog unit price adjusted for the customer's tax display, still in the primary store currency.
+    /// </summary>
+    public async Task<decimal> GetPrimaryDisplayPriceAsync(Product product, Customer customer, decimal catalogPrimaryPrice)
+    {
+        if (product == null || customer == null)
+            return catalogPrimaryPrice;
+
+        var includingTax = await _customerService.GetCustomerTaxDisplayTypeAsync(customer) == TaxDisplayType.IncludingTax;
+
+        return (await _taxService.GetProductPriceAsync(product, catalogPrimaryPrice, includingTax, customer)).price;
+    }
+
+    public async Task<decimal> GetWorkingCurrencyDisplayPriceAsync(Product product, decimal catalogPrimaryPrice, Currency workingCurrency, Customer customer)
+    {
+        var primaryPrice = await GetPrimaryDisplayPriceAsync(product, customer, catalogPrimaryPrice);
+        var converted = await _currencyService.ConvertFromPrimaryStoreCurrencyAsync(primaryPrice, workingCurrency);
+
+        return _priceCalculationService.Round(converted, workingCurrency.RoundingType);
+    }
+
+    /// <summary>
+    /// Converts a price entered in the customer's tax-display basis back to the catalog unit price checkout expects.
+    /// </summary>
+    public async Task<decimal> ConvertDisplayPriceToCatalogAsync(Product product, Customer customer, decimal displayPrice)
+    {
+        if (product == null || customer == null)
+            return displayPrice;
+
+        var includingTax = await _customerService.GetCustomerTaxDisplayTypeAsync(customer) == TaxDisplayType.IncludingTax;
+        var (_, taxRate) = await _taxService.GetProductPriceAsync(product, displayPrice, includingTax, customer);
+        var catalogPrice = RfqCatalogPrice.ToCatalogPrice(displayPrice, taxRate, _taxSettings.PricesIncludeTax, includingTax);
+
+        var primaryCurrency = await _currencyService.GetCurrencyByIdAsync(_currencySettings.PrimaryStoreCurrencyId);
+
+        return primaryCurrency == null
+            ? catalogPrice
+            : _priceCalculationService.Round(catalogPrice, primaryCurrency.RoundingType);
+    }
+
+    /// <summary>
+    /// Maps a number posted from the customer request form back to the stored catalog price.
+    /// </summary>
+    public async Task<decimal> ResolveCatalogPriceFromCustomerInputAsync(Product product, Customer customer, decimal currentCatalogPrice, decimal enteredWorkingPrice)
+    {
+        var workingCurrency = await _workContext.GetWorkingCurrencyAsync();
+        var displayed = await GetWorkingCurrencyDisplayPriceAsync(product, currentCatalogPrice, workingCurrency, customer);
+        var enteredPrimary = await _currencyService.ConvertToPrimaryStoreCurrencyAsync(enteredWorkingPrice, workingCurrency);
+        var editedCatalogPrice = await ConvertDisplayPriceToCatalogAsync(product, customer, enteredPrimary);
+
+        return RfqCatalogPrice.KeepWhenUnchanged(currentCatalogPrice, enteredWorkingPrice, displayed, editedCatalogPrice);
     }
 
     private async Task<string> GetCurrentCustomerEmailAsync()
@@ -342,17 +416,18 @@ public class RfqService
 
         var items = await cart.SelectAwait(async item =>
         {
-            var (shoppingCartUnitPriceWithDiscountBase, _) = await _taxService.GetProductPriceAsync(await _productService.GetProductByIdAsync(item.ProductId),
-                (await _shoppingCartService.GetUnitPriceAsync(item, true)).unitPrice);
+            // Same basis as ShoppingCartService.GetUnitPriceAsync. Tax display is applied when the price is shown
+            // and again when the quote is checked out, so storing the display price charges tax twice.
+            var (unitPrice, _, _) = await _shoppingCartService.GetUnitPriceAsync(item, true);
 
             var requestQuoteItem = new RequestQuoteItem
             {
                 Id = item.Id,
                 ProductAttributesXml = item.AttributesXml,
-                OriginalProductPrice = shoppingCartUnitPriceWithDiscountBase,
+                OriginalProductPrice = unitPrice,
                 ProductId = item.ProductId,
                 RequestedQty = item.Quantity,
-                RequestedUnitPrice = shoppingCartUnitPriceWithDiscountBase,
+                RequestedUnitPrice = unitPrice,
                 RequestQuoteId = requestQuote.Id
             };
 
@@ -1001,9 +1076,10 @@ public class RfqService
                     productItem.ProductAttributes = attributes.Split('\n').ToList();
                 }
 
-                //price
+                //price in the customer's tax display and working currency
                 var currentCurrency = await _workContext.GetWorkingCurrencyAsync();
-                productItem.Price = await _priceFormatter.FormatPriceAsync(await _currencyService.ConvertFromPrimaryStoreCurrencyAsync(qi.OfferedUnitPrice, currentCurrency), true, currentCurrency);
+                var displayPrice = await GetWorkingCurrencyDisplayPriceAsync(product, qi.OfferedUnitPrice, currentCurrency, customer);
+                productItem.Price = await _priceFormatter.FormatPriceAsync(displayPrice, true, currentCurrency);
 
                 //qty
                 productItem.Quantity = qi.OfferedQty.ToString();

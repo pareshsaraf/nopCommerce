@@ -7,7 +7,6 @@ using Nop.Plugin.Misc.RFQ.Domains;
 using Nop.Plugin.Misc.RFQ.Models.Customer;
 using Nop.Plugin.Misc.RFQ.Services;
 using Nop.Services.Catalog;
-using Nop.Services.Directory;
 using Nop.Services.Helpers;
 using Nop.Services.Localization;
 using Nop.Services.Media;
@@ -20,11 +19,9 @@ public class CustomerModelFactory
     #region Fields
 
     private readonly CaptchaSettings _captchaSettings;
-    private readonly ICurrencyService _currencyService;
     private readonly IDateTimeHelper _dateTimeHelper;
     private readonly ILocalizationService _localizationService;
     private readonly IPictureService _pictureService;
-    private readonly IPriceCalculationService _priceCalculationService;
     private readonly IPriceFormatter _priceFormatter;
     private readonly IProductAttributeFormatter _productAttributeFormatter;
     private readonly IProductService _productService;
@@ -39,11 +36,9 @@ public class CustomerModelFactory
     #region Ctor
 
     public CustomerModelFactory(CaptchaSettings captchaSettings,
-        ICurrencyService currencyService,
         IDateTimeHelper dateTimeHelper,
         ILocalizationService localizationService,
         IPictureService pictureService,
-        IPriceCalculationService priceCalculationService,
         IPriceFormatter priceFormatter,
         IProductAttributeFormatter productAttributeFormatter,
         IProductService productService,
@@ -54,11 +49,9 @@ public class CustomerModelFactory
         RfqSettings rfqSettings)
     {
         _captchaSettings = captchaSettings;
-        _currencyService = currencyService;
         _dateTimeHelper = dateTimeHelper;
         _localizationService = localizationService;
         _pictureService = pictureService;
-        _priceCalculationService = priceCalculationService;
         _priceFormatter = priceFormatter;
         _productAttributeFormatter = productAttributeFormatter;
         _productService = productService;
@@ -93,6 +86,8 @@ public class CustomerModelFactory
     private async Task<QuoteItemModel> PrepareQuoteItemModelAsync(QuoteItem item, Currency currentCurrency)
     {
         var product = await _productService.GetProductByIdAsync(item.ProductId);
+        var customer = await _workContext.GetCurrentCustomerAsync();
+        var displayPrice = await _rfqService.GetWorkingCurrencyDisplayPriceAsync(product, item.OfferedUnitPrice, currentCurrency, customer);
 
         return new QuoteItemModel
         {
@@ -100,7 +95,7 @@ public class CustomerModelFactory
             Quantity = item.OfferedQty,
             ProductName = product != null ? await _localizationService.GetLocalizedAsync(product, x => x.Name) : await _localizationService.GetResourceAsync("Plugins.Misc.RFQ.ProductDeleted"),
             ProductSeName = await _urlRecordService.GetSeNameAsync(product),
-            UnitPrice = await _priceFormatter.FormatPriceAsync(await _currencyService.ConvertFromPrimaryStoreCurrencyAsync(item.OfferedUnitPrice, currentCurrency), true, currentCurrency),
+            UnitPrice = await _priceFormatter.FormatPriceAsync(displayPrice, true, currentCurrency),
             AttributeInfo = product != null ? await _productAttributeFormatter.FormatAttributesAsync(product, item.AttributesXml) : string.Empty,
             PictureUrl = product != null ? await GetPictureUrlAsync(product, item.AttributesXml, _mediaSettings.CartThumbPictureSize) : await _pictureService.GetDefaultPictureUrlAsync(_mediaSettings.CartThumbPictureSize),
         };
@@ -201,9 +196,8 @@ public class CustomerModelFactory
     public async Task<RequestQuoteItemModel> PrepareRequestQuoteItemModelAsync(RequestQuote requestQuote, RequestQuoteItem item, Currency currentCurrency)
     {
         var product = await _productService.GetProductByIdAsync(item.ProductId);
-
-        var unitPrice = await _currencyService.ConvertFromPrimaryStoreCurrencyAsync(item.RequestedUnitPrice, currentCurrency);
-        unitPrice = _priceCalculationService.Round(unitPrice, currentCurrency.RoundingType);
+        var customer = await _workContext.GetCurrentCustomerAsync();
+        var unitPrice = await _rfqService.GetWorkingCurrencyDisplayPriceAsync(product, item.RequestedUnitPrice, currentCurrency, customer);
 
         return new RequestQuoteItemModel
         {

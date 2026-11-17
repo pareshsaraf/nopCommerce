@@ -158,27 +158,33 @@ public class AdminModelFactory
         }
     }
 
-    private async Task<RequestQuoteItemModel> PreparedRequestQuoteItemModelAsync(RequestQuoteItem item, Currency primaryStoreCurrency)
+    private async Task<RequestQuoteItemModel> PreparedRequestQuoteItemModelAsync(RequestQuoteItem item, Currency primaryStoreCurrency, Customer customer)
     {
         var product = await _productService.GetProductByIdAsync(item.ProductId);
+        var requestedPrice = await _rfqService.GetPrimaryDisplayPriceAsync(product, customer, item.RequestedUnitPrice);
+        var originalPrice = await _rfqService.GetPrimaryDisplayPriceAsync(product, customer, item.OriginalProductPrice);
 
         return new RequestQuoteItemModel
         {
             Id = item.Id,
             RequestedQty = item.RequestedQty,
             AdminNotes = item.AdminNotes.Replace("\r\n", "<br />"),
-            OriginalProductPrice = await _priceFormatter.FormatPriceAsync(item.OriginalProductPrice, true, primaryStoreCurrency),
+            OriginalProductPrice = await _priceFormatter.FormatPriceAsync(originalPrice, true, primaryStoreCurrency),
             ProductName = product != null ? product.Name : await _localizationService.GetResourceAsync("Plugins.Misc.RFQ.ProductDeleted"),
             ProductId = item.ProductId,
-            RequestedUnitPrice = await _priceFormatter.FormatPriceAsync(item.RequestedUnitPrice, true, primaryStoreCurrency),
-            RequestedUnitPriceValue = item.RequestedUnitPrice,
+            RequestedUnitPrice = await _priceFormatter.FormatPriceAsync(requestedPrice, true, primaryStoreCurrency),
+            RequestedUnitPriceValue = requestedPrice,
             ProductAttributeInfo = product != null ? await _productAttributeFormatter.FormatAttributesAsync(product, item.ProductAttributesXml) : string.Empty
         };
     }
 
-    private async Task<QuoteItemModel> PreparedQuoteItemModelAsync(QuoteItem item, Currency primaryStoreCurrency)
+    private async Task<QuoteItemModel> PreparedQuoteItemModelAsync(QuoteItem item, Currency primaryStoreCurrency, Customer customer)
     {
         var product = await _productService.GetProductByIdAsync(item.ProductId);
+        var offeredPrice = await _rfqService.GetPrimaryDisplayPriceAsync(product, customer, item.OfferedUnitPrice);
+        var requestedPrice = item.RequestedUnitPrice.HasValue
+            ? await _rfqService.GetPrimaryDisplayPriceAsync(product, customer, item.RequestedUnitPrice.Value)
+            : (decimal?)null;
 
         return new QuoteItemModel
         {
@@ -186,11 +192,11 @@ public class AdminModelFactory
             OfferedQty = item.OfferedQty,
             ProductName = product != null ? product.Name : await _localizationService.GetResourceAsync("Plugins.Misc.RFQ.ProductDeleted"),
             ProductId = item.ProductId,
-            OfferedUnitPrice = await _priceFormatter.FormatPriceAsync(item.OfferedUnitPrice, true, primaryStoreCurrency),
-            OfferedUnitPriceValue = item.OfferedUnitPrice,
+            OfferedUnitPrice = await _priceFormatter.FormatPriceAsync(offeredPrice, true, primaryStoreCurrency),
+            OfferedUnitPriceValue = offeredPrice,
             ProductAttributeInfo = product != null ? await _productAttributeFormatter.FormatAttributesAsync(product, item.AttributesXml) : string.Empty,
             RequestedQty = item.RequestedQty,
-            RequestedUnitPrice = item.RequestedUnitPrice.HasValue ? await _priceFormatter.FormatPriceAsync(item.RequestedUnitPrice.Value, true, primaryStoreCurrency) : string.Empty,
+            RequestedUnitPrice = requestedPrice.HasValue ? await _priceFormatter.FormatPriceAsync(requestedPrice.Value, true, primaryStoreCurrency) : string.Empty,
         };
     }
 
@@ -325,8 +331,10 @@ public class AdminModelFactory
     {
         var items = await _rfqService.GetRequestQuoteItemsAsync(requestQuoteId);
         var primaryStoreCurrency = await _currencyService.GetCurrencyByIdAsync(_currencySettings.PrimaryStoreCurrencyId);
+        var requestQuote = await _rfqService.GetRequestQuoteByIdAsync(requestQuoteId);
+        var customer = await _customerService.GetCustomerByIdAsync(requestQuote?.CustomerId ?? 0);
 
-        return await items.SelectAwait(async p => await PreparedRequestQuoteItemModelAsync(p, primaryStoreCurrency)).ToListAsync();
+        return await items.SelectAwait(async p => await PreparedRequestQuoteItemModelAsync(p, primaryStoreCurrency, customer)).ToListAsync();
     }
 
     /// <summary>
@@ -341,8 +349,10 @@ public class AdminModelFactory
     {
         var items = await _rfqService.GetQuoteItemsAsync(quoteId);
         var primaryStoreCurrency = await _currencyService.GetCurrencyByIdAsync(_currencySettings.PrimaryStoreCurrencyId);
+        var quote = await _rfqService.GetQuoteByIdAsync(quoteId);
+        var customer = await _customerService.GetCustomerByIdAsync(quote?.CustomerId ?? 0);
 
-        return await items.SelectAwait(async p => await PreparedQuoteItemModelAsync(p, primaryStoreCurrency)).ToListAsync();
+        return await items.SelectAwait(async p => await PreparedQuoteItemModelAsync(p, primaryStoreCurrency, customer)).ToListAsync();
     }
 
     /// <summary>
@@ -364,7 +374,6 @@ public class AdminModelFactory
         var customerId = quote.CustomerId;
 
         var customer = await _customerService.GetCustomerByIdAsync(customerId);
-        var taxDisplayType = await _customerService.GetCustomerTaxDisplayTypeAsync(customer);
         var store = await _storeContext.GetCurrentStoreAsync();
 
         model.ProductId = product.Id;
@@ -376,9 +385,8 @@ public class AdminModelFactory
         var presetQty = 1;
         var (_, presetPrice, _, _) = await _priceCalculationService.GetFinalPriceAsync(product, customer, store, decimal.Zero, true, presetQty);
 
-        var (presetPriceInclTax, _) = await _taxService.GetProductPriceAsync(product, presetPrice, taxDisplayType == TaxDisplayType.IncludingTax, customer);
-
-        model.UnitPriceInclTax = presetPriceInclTax;
+        // Show the customer's tax-display price. Save converts it back to the catalog unit price.
+        model.UnitPriceInclTax = await _rfqService.GetPrimaryDisplayPriceAsync(product, customer, presetPrice);
         model.Quantity = presetQty;
 
         //attributes

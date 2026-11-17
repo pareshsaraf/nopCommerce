@@ -198,7 +198,7 @@ public class RfqAdminController : BasePluginController
                 ProductId = product.Id,
                 OfferedQty = quantity,
                 QuoteId = quoteId,
-                OfferedUnitPrice = unitPriceInclTax
+                OfferedUnitPrice = await _rfqService.ConvertDisplayPriceToCatalogAsync(product, customer, unitPriceInclTax)
             };
 
             await _rfqService.InsertQuoteItemAsync(quoteItem);
@@ -359,6 +359,11 @@ public class RfqAdminController : BasePluginController
 
         int.TryParse(form[$"quantity{requestQuoteItemId}"], out var requestedQty);
         decimal.TryParse(form[$"unitPrice{requestQuoteItemId}"], out var requestedUnitPrice);
+
+        var requestItem = await _rfqService.GetRequestQuoteItemByIdAsync(requestQuoteItemId);
+        var requestCustomer = await _customerService.GetCustomerByIdAsync(requestQuote.CustomerId);
+        var requestProduct = requestItem == null ? null : await _productService.GetProductByIdAsync(requestItem.ProductId);
+        requestedUnitPrice = await _rfqService.ConvertDisplayPriceToCatalogAsync(requestProduct, requestCustomer, requestedUnitPrice);
 
         await _rfqService.UpdateRequestQuoteItemAsync(requestQuoteItemId, requestedQty, requestedUnitPrice);
 
@@ -654,6 +659,11 @@ public class RfqAdminController : BasePluginController
 
         int.TryParse(form[$"quantity{quoteItemId}"], out var offeredQty);
         decimal.TryParse(form[$"unitPrice{quoteItemId}"], out var offeredUnitPrice);
+
+        var quoteItem = await _rfqService.GetQuoteItemByIdAsync(quoteItemId);
+        var quoteCustomer = await _customerService.GetCustomerByIdAsync(quote.CustomerId);
+        var quoteProduct = quoteItem == null ? null : await _productService.GetProductByIdAsync(quoteItem.ProductId);
+        offeredUnitPrice = await _rfqService.ConvertDisplayPriceToCatalogAsync(quoteProduct, quoteCustomer, offeredUnitPrice);
 
         await _rfqService.UpdateQuoteItemAsync(quoteItemId, offeredQty, offeredUnitPrice);
 
