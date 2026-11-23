@@ -451,6 +451,8 @@ public class RfqCustomerController : BasePublicController
         var store = await _storeContext.GetCurrentStoreAsync();
 
         await _shoppingCartService.ClearShoppingCartAsync(customer, store.Id);
+        // Quote mode left other vendors' items stashed. Put them back once the quote cart is gone.
+        await _shoppingCartService.SetShoppingCartVendorAsync(customer, null, store.Id);
 
         return RedirectToRoute(NopRouteNames.General.HOMEPAGE);
     }

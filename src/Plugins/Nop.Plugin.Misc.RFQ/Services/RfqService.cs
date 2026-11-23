@@ -858,9 +858,10 @@ public class RfqService
         var store = await _storeContext.GetCurrentStoreAsync();
         var quoteItems = await GetQuoteItemsAsync(quoteId);
 
-        //reset cart and checkout info
-        await _shoppingCartService.SetShoppingCartVendorAsync(customer, null, store.Id);
+        // Replace the active cart with the quote. Clearing the vendor first would move
+        // stashed items into the cart, and the clear would delete them.
         await _shoppingCartService.ClearShoppingCartAsync(customer, store.Id);
+        await _shoppingCartService.SetShoppingCartVendorAsync(customer, null, store.Id, reassignItems: false);
         await _shoppingCartService.ResetCheckoutDataAsync(customer, store.Id);
 
         foreach (var quoteItem in quoteItems)
