@@ -347,8 +347,9 @@ public partial interface IShoppingCartService
     /// <param name="customer">Customer</param>
     /// <param name="vendorId">Vendor identifier; pass null to clear</param>
     /// <param name="storeId">Store identifier</param>
+    /// <param name="reassignItems">Whether to move items between the cart and the stash to match the vendor. Pass false to record the selection only</param>
     /// <returns>A task that represents the asynchronous operation</returns>
-    Task SetShoppingCartVendorAsync(Customer customer, int? vendorId, int storeId);
+    Task SetShoppingCartVendorAsync(Customer customer, int? vendorId, int storeId, bool reassignItems = true);
 
     /// <summary>
     /// Indicates whether the shopping cart requires shipping

@@ -1976,18 +1976,38 @@ public partial class ShoppingCartService : IShoppingCartService
     /// <param name="customer">Customer</param>
     /// <param name="vendorId">Vendor identifier; pass null to clear</param>
     /// <param name="storeId">Store identifier</param>
+    /// <param name="reassignItems">Whether to move items between the cart and the stash to match the vendor. Pass false to record the selection only</param>
     /// <returns>A task that represents the asynchronous operation</returns>
-    public virtual async Task SetShoppingCartVendorAsync(Customer customer, int? vendorId, int storeId)
+    public virtual async Task SetShoppingCartVendorAsync(Customer customer, int? vendorId, int storeId, bool reassignItems = true)
     {
         ArgumentNullException.ThrowIfNull(customer);
 
         if (vendorId == 0)
             vendorId = null;
 
-        if (vendorId is null && await _genericAttributeService.GetAttributeAsync<int?>(customer, NopCustomerDefaults.ShoppingCartVendorAttribute, storeId) is null)
+        var currentVendorId = await _genericAttributeService.GetAttributeAsync<int?>(customer, NopCustomerDefaults.ShoppingCartVendorAttribute, storeId);
+
+        if (currentVendorId != vendorId)
+            await _genericAttributeService.SaveAttributeAsync(customer, NopCustomerDefaults.ShoppingCartVendorAttribute, vendorId, storeId);
+
+        if (!reassignItems)
             return;
 
-        await _genericAttributeService.SaveAttributeAsync(customer, NopCustomerDefaults.ShoppingCartVendorAttribute, vendorId, storeId);
+        // The selection is already empty. Items can still sit in the stash when a quote
+        // replaced the active cart without moving them; fold those back into the cart.
+        if (vendorId is null && currentVendorId is null)
+        {
+            var stashedItems = await GetShoppingCartAsync(customer, [(int)ShoppingCartType.Stash], storeId);
+            if (!stashedItems.Any())
+                return;
+
+            foreach (var item in stashedItems)
+                item.ShoppingCartType = ShoppingCartType.ShoppingCart;
+
+            await _sciRepository.UpdateAsync(stashedItems);
+            await UpdateHasShoppingCartItemsAsync(customer);
+            return;
+        }
 
         var itemsToUpdate = new List<ShoppingCartItem>();
         var shoppingCart = await GetShoppingCartAsync(customer, [(int)ShoppingCartType.ShoppingCart, (int)ShoppingCartType.Stash], storeId);
