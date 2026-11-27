@@ -139,6 +139,10 @@ public class ChatGptShoppingService
             var pathToFile = string.Format(ChatGptShoppingDefaults.PathToFeedFile, store.Id);
             var localFilePath = _nopFileProvider.GetAbsolutePath(pathToFile);
             await using var fileStream = _nopFileProvider.GetOrCreateFile(localFilePath);
+            // GetOrCreateFile opens an existing file without truncating it. A shorter gzip
+            // written over a longer one leaves trailing bytes, and gzip readers then reject
+            // the whole file (BadGzipFile), so the published feed stops being ingestible.
+            fileStream.SetLength(0);
             await using var gzip = new GZipStream(fileStream, CompressionLevel.Optimal);
             await using var writer = new StreamWriter(gzip, new UTF8Encoding(false));
 
